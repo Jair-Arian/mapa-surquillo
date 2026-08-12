@@ -1220,6 +1220,75 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
+  // 12B. BÚSQUEDA POR VOZ (MICROFONO)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const micBtn = document.getElementById('mic-btn');
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-PE';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    let isListening = false;
+
+    micBtn?.addEventListener('click', () => {
+      if (isListening) {
+        recognition.stop();
+      } else {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.warn('Speech recognition error:', e);
+        }
+      }
+    });
+
+    recognition.onstart = () => {
+      isListening = true;
+      micBtn?.classList.add('listening');
+      if (micBtn) micBtn.title = 'Escuchando... haz clic para detener';
+      showToast('🎙️ Escuchando... Di tu dirección en Surquillo', 'info');
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      if (searchInput) {
+        searchInput.value = transcript;
+      }
+      showToast(`🎙️ Reconocido: "${transcript}"`, 'success');
+      setTimeout(() => {
+        handleSearch();
+      }, 400);
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      isListening = false;
+      micBtn?.classList.remove('listening');
+      if (event.error === 'not-allowed') {
+        showToast('⚠️ Permiso de micrófono denegado en el navegador.', 'error');
+      } else if (event.error === 'no-speech') {
+        showToast('⚠️ No se detectó voz. Inténtalo de nuevo.', 'info');
+      } else {
+        showToast('⚠️ No se pudo procesar la voz.', 'error');
+      }
+    };
+
+    recognition.onend = () => {
+      isListening = false;
+      micBtn?.classList.remove('listening');
+      if (micBtn) micBtn.title = 'Dictar dirección por voz';
+    };
+  } else {
+    micBtn?.addEventListener('click', () => {
+      showToast('⚠️ Tu navegador no soporta el dictado por voz.', 'error');
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // 13. SECTOR CARD INTERACTIONS
   // ──────────────────────────────────────────────────────────────────────────
 
