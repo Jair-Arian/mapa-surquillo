@@ -905,30 +905,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Download Route CSV (Sector and Subsector in SEPARATE columns)
+  // Download Route CSV (Sector and Subsector in SEPARATE columns, Excel compatible)
   function downloadRouteCSV() {
     if (routeStops.length === 0) {
       showToast('No hay paradas para descargar.', 'error');
       return;
     }
 
-    let csv = `Numero,Direccion,Sector,Sector_Nombre,Subsector,Subsector_Nombre,Latitud,Longitud\n`;
+    // Usar BOM de UTF-8 (\uFEFF) y punto y coma (;) como delimitador para compatibilidad total con Excel en español
+    const sep = ';';
+    let csv = '\uFEFF';
+    
+    // Encabezados de columna claros y separados
+    csv += ['N° Parada', 'Direccion', 'Sector', 'Nombre Sector', 'Subsector', 'Nombre Subsector', 'Latitud', 'Longitud'].join(sep) + '\n';
+
     routeStops.forEach((s, idx) => {
-      const cleanAddress = `"${s.address.replace(/"/g, '""')}"`;
-      const subId = s.subsectorId ? `"${s.subsectorId}"` : '""';
-      const subName = s.subsectorName ? `"${s.subsectorName}"` : '""';
-      csv += `${idx + 1},${cleanAddress},"${s.sectorId}","${s.sectorName}",${subId},${subName},${s.lat},${s.lng}\n`;
+      const addressClean = `"${(s.address || '').replace(/"/g, '""')}"`;
+      const sectorId = `"${s.sectorName || 'Sector ' + s.sectorId}"`;
+      const sectorName = `"${(s.sectorShortName || '')}"`;
+      const subsectorId = s.subsectorId ? `"${s.subsectorId}"` : '"Sin Subsector"';
+      const subsectorName = s.subsectorName ? `"${s.subsectorName} - ${s.subsectorShortName}"` : '"N/A"';
+      
+      const row = [
+        idx + 1,
+        addressClean,
+        sectorId,
+        sectorName,
+        subsectorId,
+        subsectorName,
+        s.lat,
+        s.lng
+      ];
+
+      csv += row.join(sep) + '\n';
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `ruta_surquillo_${new Date().toISOString().slice(0,10)}.csv`;
+    link.download = `ruta_surquillo_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
 
-    showToast('📥 Archivo CSV descargado con éxito.', 'success');
+    showToast('📥 Archivo CSV descargado con éxito (Columnas separadas para Excel).', 'success');
   }
 
   // Event Listeners for Route Controls
