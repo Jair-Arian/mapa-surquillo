@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Mapa interactivo sectorizado en 7 sectores del distrito de Surquillo, Lima. Busca direcciones, graba rutas y clasifica automáticamente por sector.">
+    <title>Mapa Sectorizado de Surquillo (7 Sectores) | Clasificación Territorial</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="anonymous" />
+
+    <!-- App Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2 class="loading-title">Mapa Sectorizado de Surquillo</h2>
+            <p class="loading-subtitle">Cargando 7 Sectores Territoriales...</p>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header" id="header">
+        <div class="header-left">
+            <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú lateral">
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+                <span class="hamburger-line"></span>
+            </button>
+            <div class="header-brand">
+                <span class="brand-icon">🗺️</span>
+                <div>
+                    <h1 class="brand-title">Surquillo (7 Sectores)</h1>
+                    <p class="brand-subtitle">Sistema de Clasificación Territorial</p>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <span class="header-badge">v3.0</span>
+            <span class="header-badge header-badge--live" id="recording-badge" style="display: none;">
+                <span class="live-dot recording-dot"></span>
+                Grabando Ruta
+            </span>
+            <span class="header-badge header-badge--live">
+                <span class="live-dot"></span>
+                7 Sectores Activos
+            </span>
+        </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <!-- Search Section -->
+        <div class="sidebar-section search-section">
+            <h2 class="section-title">
+                <span class="section-icon">🔍</span>
+                Buscar Dirección
+            </h2>
+            <div class="search-bar">
+                <input
+                    type="text"
+                    id="search-input"
+                    class="search-input"
+                    placeholder="Ej: Av. Angamos Este 1200, La Calera..."
+                    autocomplete="off"
+                    aria-label="Buscar dirección en Surquillo"
+                >
+                <button id="search-btn" class="search-btn" aria-label="Buscar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+            </div>
+            <button id="clear-btn" class="clear-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"></path>
+                </svg>
+                Limpiar búsqueda
+            </button>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- ROUTE RECORDER SECTION -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="sidebar-section route-section">
+            <h2 class="section-title">
+                <span class="section-icon">🛣️</span>
+                Grabador de Rutas
+            </h2>
+
+            <!-- Recording Controls -->
+            <div class="route-controls">
+                <button id="route-toggle-btn" class="route-btn route-btn--start">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span>Iniciar Ruta</span>
+                </button>
+                <button id="route-summary-btn" class="route-btn route-btn--summary" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>Ver Resumen</span>
+                </button>
+            </div>
+
+            <!-- Recording Status -->
+            <div id="route-status" class="route-status" style="display: none;">
+                <div class="route-status-indicator">
+                    <span class="recording-pulse-dot"></span>
+                    <span class="route-status-text">Grabando...</span>
+                </div>
+                <span id="route-stop-counter" class="route-stop-counter">0 paradas</span>
+            </div>
+
+            <!-- Live Stops List -->
+            <div id="route-stops-container" class="route-stops-container" style="display: none;">
+                <div class="route-stops-header">
+                    <span class="route-stops-title">📍 Paradas registradas</span>
+                    <button id="route-clear-btn" class="route-clear-btn" title="Borrar toda la ruta">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"></path>
+                        </svg>
+                    </button>
+                </div>
+                <ul id="route-stops-list" class="route-stops-list">
+                    <!-- Dynamic stops rendered here by JS -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Sectors Section -->
+        <div class="sidebar-section sectors-section">
+            <h2 class="section-title">
+                <span class="section-icon">📍</span>
+                Sectores del Distrito (1 al 7)
+            </h2>
+
+            <div class="sector-cards" id="sector-cards">
+                <!-- Sector 1 -->
+                <div class="sector-card" data-sector="1">
+                    <div class="sector-card-indicator" style="--sector-color: #3B82F6;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">01</span>
+                            <h3 class="sector-name">Sector 1</h3>
+                        </div>
+                        <p class="sector-subtitle">La Calera / Higuereta / El Pedregal</p>
+                        <div class="subsector-chips">
+                            <button class="subsector-chip" data-subsector="1-A" style="background: #60A5FA20; color: #60A5FA; border-color: #60A5FA40;">
+                                <span class="chip-dot" style="background: #60A5FA;"></span> 1-A
+                            </button>
+                            <button class="subsector-chip" data-subsector="1-B" style="background: #3B82F620; color: #3B82F6; border-color: #3B82F640;">
+                                <span class="chip-dot" style="background: #3B82F6;"></span> 1-B
+                            </button>
+                            <button class="subsector-chip" data-subsector="1-C" style="background: #2563EB20; color: #2563EB; border-color: #2563EB40;">
+                                <span class="chip-dot" style="background: #2563EB;"></span> 1-C
+                            </button>
+                            <button class="subsector-chip" data-subsector="1-D" style="background: #1D4ED820; color: #1D4ED8; border-color: #1D4ED840;">
+                                <span class="chip-dot" style="background: #1D4ED8;"></span> 1-D
+                            </button>
+                        </div>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 2 -->
+                <div class="sector-card" data-sector="2">
+                    <div class="sector-card-indicator" style="--sector-color: #F59E0B;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">02</span>
+                            <h3 class="sector-name">Sector 2</h3>
+                        </div>
+                        <p class="sector-subtitle">Barrio Médico / Mantilla</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 3 -->
+                <div class="sector-card" data-sector="3">
+                    <div class="sector-card-indicator" style="--sector-color: #EF4444;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">03</span>
+                            <h3 class="sector-name">Sector 3</h3>
+                        </div>
+                        <p class="sector-subtitle">Surquillo Viejo / Tradicional</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 4 -->
+                <div class="sector-card" data-sector="4">
+                    <div class="sector-card-indicator" style="--sector-color: #10B981;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">04</span>
+                            <h3 class="sector-name">Sector 4</h3>
+                        </div>
+                        <p class="sector-subtitle">General Recavarren / Irribarren</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 5 -->
+                <div class="sector-card" data-sector="5">
+                    <div class="sector-card-indicator" style="--sector-color: #8B5CF6;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">05</span>
+                            <h3 class="sector-name">Sector 5</h3>
+                        </div>
+                        <p class="sector-subtitle">San Felipe / El Cóndor</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 6 -->
+                <div class="sector-card" data-sector="6">
+                    <div class="sector-card-indicator" style="--sector-color: #EC4899;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">06</span>
+                            <h3 class="sector-name">Sector 6</h3>
+                        </div>
+                        <p class="sector-subtitle">Villa Victoria / Urb. Primavera</p>
+                        <div class="subsector-chips">
+                            <button class="subsector-chip" data-subsector="6-A" style="background: #F472B620; color: #F472B6; border-color: #F472B640;">
+                                <span class="chip-dot" style="background: #F472B6;"></span> 6-A
+                            </button>
+                            <button class="subsector-chip" data-subsector="6-B" style="background: #DB277720; color: #DB2777; border-color: #DB277740;">
+                                <span class="chip-dot" style="background: #DB2777;"></span> 6-B
+                            </button>
+                        </div>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 7 -->
+                <div class="sector-card" data-sector="7">
+                    <div class="sector-card-indicator" style="--sector-color: #06B6D4;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">07</span>
+                            <h3 class="sector-name">Sector 7</h3>
+                        </div>
+                        <p class="sector-subtitle">Los Halcones / Los Negocios</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Info Panel (details when sector selected) -->
+        <div class="sidebar-section info-panel" id="info-panel">
+            <div class="info-panel-header">
+                <h2 class="section-title">
+                    <span class="section-icon">📋</span>
+                    <span id="info-title">Detalles del Sector</span>
+                </h2>
+                <button class="info-close" id="info-close" aria-label="Cerrar panel de detalles">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="info-body" id="info-body">
+                <p class="info-placeholder">Seleccione un sector o busque una dirección para ver los detalles.</p>
+            </div>
+        </div>
+
+        <!-- Footer Stats -->
+        <div class="sidebar-footer">
+            <div class="footer-stat">
+                <span class="stat-value">7</span>
+                <span class="stat-label">Sectores</span>
+            </div>
+            <div class="footer-divider"></div>
+            <div class="footer-stat">
+                <span class="stat-value" id="footer-stops">0</span>
+                <span class="stat-label">Paradas</span>
+            </div>
+            <div class="footer-divider"></div>
+            <div class="footer-stat">
+                <span class="stat-value">100%</span>
+                <span class="stat-label">Cobertura</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- ROUTE SUMMARY MODAL -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="route-modal" class="route-modal" style="display: none;">
+        <div class="route-modal-backdrop" id="route-modal-backdrop"></div>
+        <div class="route-modal-content">
+            <div class="route-modal-header">
+                <h2 class="route-modal-title">📋 Resumen de Ruta por Sectores</h2>
+                <button id="route-modal-close" class="route-modal-close" aria-label="Cerrar resumen">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="route-modal-tabs">
+                <button class="route-tab active" data-tab="by-sector">Por Sector</button>
+                <button class="route-tab" data-tab="itinerary">Itinerario</button>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="route-modal-body" id="route-modal-body">
+                <!-- Dynamically populated by JS -->
+            </div>
+
+            <!-- Export Actions -->
+            <div class="route-modal-footer">
+                <button id="route-copy-btn" class="route-export-btn route-export-btn--copy">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+                    </svg>
+                    Copiar Reporte
+                </button>
+                <button id="route-download-btn" class="route-export-btn route-export-btn--download">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Descargar CSV
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map" class="map-container"></div>
+
+    <!-- Sidebar Overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Leaflet.js -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin="anonymous"></script>
+
+    <!-- App Script -->
+    <script src="app.js"></script>
+</body>
+</html>
+
