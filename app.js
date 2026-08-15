@@ -619,7 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Toda la ruta ha sido borrada', 'info');
   }
 
-  // Render Map Elements (Markers + Polyline)
+  // Render Map Elements (Markers only, no connecting line)
   function renderRouteOnMap() {
     routeMarkerLayers.forEach(m => map.removeLayer(m));
     routeMarkerLayers = [];
@@ -630,14 +630,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (routeStops.length === 0) return;
-
-    const latLngs = routeStops.map(s => [s.lat, s.lng]);
-    routePolylineLayer = L.polyline(latLngs, {
-      color: '#3B82F6',
-      weight: 3.5,
-      dashArray: '6, 8',
-      opacity: 0.85
-    }).addTo(map);
 
     routeStops.forEach((stop, idx) => {
       const markerColor = stop.subsectorColor || stop.sectorColor;
