@@ -1363,6 +1363,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const isVisible = sectorsPanel.style.display !== 'none';
     sectorsPanel.style.display = isVisible ? 'none' : 'block';
     sectorsToggleBtn.classList.toggle('active', !isVisible);
+
+    // On mobile, auto-expand sidebar to FULL (0% translateY) when opening sectors list
+    if (window.innerWidth <= 768) {
+      if (!isVisible) {
+        setSidebarPosition(SNAP_FULL, true);
+      } else if (currentSnap === SNAP_FULL) {
+        setSidebarPosition(SNAP_HALF, true);
+      }
+    }
   });
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -1376,10 +1385,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Snap positions as % of viewport height that the sidebar SHOWS
   // translateY(X%) means X% is hidden, so showing = 100 - X
-  const SNAP_CLOSED = 100;   // fully hidden
-  const SNAP_SMALL = 85;     // ~15% visible (just search bar)
-  const SNAP_HALF = 50;      // ~50% visible (default open)
-  const SNAP_FULL = 10;      // ~90% visible (expanded)
+  const SNAP_CLOSED = 100;   // fully hidden (0% visible)
+  const SNAP_SMALL = 82;     // ~18% visible (just search bar)
+  const SNAP_HALF = 45;      // ~55% visible (default open)
+  const SNAP_FULL = 0;       // 100% visible (full expansion up to 92vh!)
 
   let currentSnap = SNAP_CLOSED;
   let isDragging = false;
@@ -1421,13 +1430,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const snaps = [SNAP_FULL, SNAP_HALF, SNAP_SMALL, SNAP_CLOSED];
 
     // If flicking down fast, go to next lower snap
-    if (velocity > 0.5) {
-      const lower = snaps.find(s => s > currentY);
+    if (velocity > 0.25) {
+      const lower = snaps.find(s => s > currentY + 3);
       return lower !== undefined ? lower : SNAP_CLOSED;
     }
     // If flicking up fast, go to next higher snap
-    if (velocity < -0.5) {
-      const higher = [...snaps].reverse().find(s => s < currentY);
+    if (velocity < -0.25) {
+      const higher = [...snaps].reverse().find(s => s < currentY - 3);
       return higher !== undefined ? higher : SNAP_FULL;
     }
 

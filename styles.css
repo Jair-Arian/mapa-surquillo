@@ -780,12 +780,15 @@ p { line-height: 1.5; color: var(--text-secondary); font-size: 0.8125rem; }
   .sidebar {
     top: auto; left: 0; right: 0; bottom: 0;
     width: 100%; max-width: 100%;
-    max-height: 90vh;
+    height: 92vh;
+    max-height: 92vh;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     transform: translateY(100%);
-    transition: transform 0.4s var(--ease-out);
+    transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
     will-change: transform;
-    touch-action: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .sidebar.mobile-open {
