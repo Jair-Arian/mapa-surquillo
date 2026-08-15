@@ -1340,20 +1340,129 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 14. MOBILE SIDEBAR TOGGLE
+  // 14. MOBILE SIDEBAR — DRAGGABLE BOTTOM SHEET
   // ──────────────────────────────────────────────────────────────────────────
 
   const sidebarToggle = document.getElementById('sidebar-toggle');
   const sidebar = document.getElementById('sidebar');
   const sidebarOverlay = document.getElementById('sidebar-overlay');
+  const dragHandle = document.getElementById('sidebar-drag-handle');
 
+  // Snap positions as % of viewport height that the sidebar SHOWS
+  // translateY(X%) means X% is hidden, so showing = 100 - X
+  const SNAP_CLOSED = 100;   // fully hidden
+  const SNAP_SMALL = 85;     // ~15% visible (just search bar)
+  const SNAP_HALF = 50;      // ~50% visible (default open)
+  const SNAP_FULL = 10;      // ~90% visible (expanded)
+
+  let currentSnap = SNAP_CLOSED;
+  let isDragging = false;
+  let dragStartY = 0;
+  let dragStartTranslate = 0;
+
+  function setSidebarPosition(translateYPercent, animate = true) {
+    if (!sidebar) return;
+    if (animate) {
+      sidebar.classList.remove('dragging');
+    } else {
+      sidebar.classList.add('dragging');
+    }
+    sidebar.style.transform = `translateY(${translateYPercent}%)`;
+    currentSnap = translateYPercent;
+
+    // Show/hide overlay
+    if (translateYPercent < SNAP_CLOSED) {
+      sidebar.classList.add('mobile-open');
+    } else {
+      sidebar.classList.remove('mobile-open');
+    }
+  }
+
+  function getTranslateY() {
+    const match = sidebar?.style.transform?.match(/translateY\(([^)]+)%\)/);
+    return match ? parseFloat(match[1]) : SNAP_CLOSED;
+  }
+
+  function snapToNearest(currentY, velocity) {
+    const snaps = [SNAP_FULL, SNAP_HALF, SNAP_SMALL, SNAP_CLOSED];
+
+    // If flicking down fast, go to next lower snap
+    if (velocity > 0.5) {
+      const lower = snaps.find(s => s > currentY);
+      return lower !== undefined ? lower : SNAP_CLOSED;
+    }
+    // If flicking up fast, go to next higher snap
+    if (velocity < -0.5) {
+      const higher = [...snaps].reverse().find(s => s < currentY);
+      return higher !== undefined ? higher : SNAP_FULL;
+    }
+
+    // Otherwise snap to nearest
+    let nearest = SNAP_HALF;
+    let minDist = Infinity;
+    snaps.forEach(snap => {
+      const dist = Math.abs(currentY - snap);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = snap;
+      }
+    });
+    return nearest;
+  }
+
+  // Touch events for drag handle
+  function handleDragStart(e) {
+    if (window.innerWidth > 768) return;
+    isDragging = true;
+    dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
+    dragStartTranslate = getTranslateY();
+    sidebar?.classList.add('dragging');
+  }
+
+  function handleDragMove(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const deltaY = clientY - dragStartY;
+    const viewportH = window.innerHeight;
+    const deltaPercent = (deltaY / viewportH) * 100;
+    const newTranslate = Math.max(SNAP_FULL, Math.min(SNAP_CLOSED, dragStartTranslate + deltaPercent));
+    sidebar.style.transform = `translateY(${newTranslate}%)`;
+  }
+
+  function handleDragEnd(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+    const deltaY = clientY - dragStartY;
+    const viewportH = window.innerHeight;
+    const velocity = deltaY / viewportH;
+    const currentY = getTranslateY();
+    const targetSnap = snapToNearest(currentY, velocity);
+    setSidebarPosition(targetSnap, true);
+  }
+
+  // Attach drag events
+  dragHandle?.addEventListener('touchstart', handleDragStart, { passive: true });
+  document.addEventListener('touchmove', handleDragMove, { passive: false });
+  document.addEventListener('touchend', handleDragEnd);
+
+  // Mouse drag for desktop testing
+  dragHandle?.addEventListener('mousedown', handleDragStart);
+  document.addEventListener('mousemove', handleDragMove);
+  document.addEventListener('mouseup', handleDragEnd);
+
+  // Hamburger button opens to half position
   function toggleMobileSidebar() {
-    sidebar?.classList.toggle('mobile-open');
-    sidebarOverlay?.classList.toggle('visible');
+    if (currentSnap < SNAP_CLOSED) {
+      setSidebarPosition(SNAP_CLOSED, true);
+    } else {
+      setSidebarPosition(SNAP_HALF, true);
+    }
   }
 
   sidebarToggle?.addEventListener('click', toggleMobileSidebar);
-  sidebarOverlay?.addEventListener('click', toggleMobileSidebar);
+  sidebarOverlay?.addEventListener('click', () => setSidebarPosition(SNAP_CLOSED, true));
 
   // ──────────────────────────────────────────────────────────────────────────
   // 15. LOADING SCREEN DISMISS
