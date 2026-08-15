@@ -435,6 +435,21 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Add subtle background watermark label for each sector ("Sector 1", "Sector 2", etc.)
+    const center = polygon.getBounds().getCenter();
+    const bgLabelIcon = L.divIcon({
+      className: 'sector-bg-label-wrapper',
+      html: `<div class="sector-bg-label" style="--sector-label-color: ${sector.color};">${sector.name}</div>`,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0]
+    });
+
+    L.marker(center, {
+      icon: bgLabelIcon,
+      interactive: false,
+      zIndexOffset: -50
+    }).addTo(map);
+
     polygonLayers.set(sector.id, polygon);
   });
 
