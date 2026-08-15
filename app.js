@@ -1327,6 +1327,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
+  // 13B. SECTORS PANEL TOGGLE
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const sectorsToggleBtn = document.getElementById('sectors-toggle-btn');
+  const sectorsPanel = document.getElementById('sectors-panel');
+
+  sectorsToggleBtn?.addEventListener('click', () => {
+    const isVisible = sectorsPanel.style.display !== 'none';
+    sectorsPanel.style.display = isVisible ? 'none' : 'block';
+    sectorsToggleBtn.classList.toggle('active', !isVisible);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
   // 14. MOBILE SIDEBAR TOGGLE
   // ──────────────────────────────────────────────────────────────────────────
 

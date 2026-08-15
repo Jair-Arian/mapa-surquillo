@@ -155,11 +155,23 @@
                 <ul id="route-stops-list" class="route-stops-list">
                     <!-- Dynamic stops rendered here by JS -->
                 </ul>
-            </div>
         </div>
 
-        <!-- Sectors Section -->
-        <div class="sidebar-section sectors-section">
+        <!-- Sectors Toggle Button -->
+        <div class="sidebar-section sectors-toggle-section">
+            <button id="sectors-toggle-btn" class="sectors-toggle-btn">
+                <div class="sectors-toggle-left">
+                    <span class="section-icon">📍</span>
+                    <span>Sectores del Distrito (1 al 7)</span>
+                </div>
+                <svg class="sectors-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Sectors Section (Hidden by default) -->
+        <div class="sidebar-section sectors-section" id="sectors-panel" style="display: none;">
             <h2 class="section-title">
                 <span class="section-icon">📍</span>
                 Sectores del Distrito (1 al 7)

@@ -1255,3 +1255,57 @@ p { line-height: 1.5; color: var(--text-secondary); font-size: 0.8125rem; }
   flex-shrink: 0;
 }
 
+/* ==========================================================================
+   SECTORS TOGGLE BUTTON
+   ========================================================================== */
+
+.sectors-toggle-section {
+  padding: var(--space-sm) var(--space-lg) !important;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sectors-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.6rem 0.875rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.sectors-toggle-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.sectors-toggle-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.sectors-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.sectors-toggle-chevron {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.sectors-toggle-btn.active .sectors-toggle-chevron {
+  transform: rotate(180deg);
+}
