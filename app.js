@@ -417,7 +417,10 @@ document.addEventListener('DOMContentLoaded', () => {
       className: 'sector-tooltip'
     });
 
-    polygon.on('click', () => {
+    polygon.on('click', (e) => {
+      if (closeMobileSidebarIfOpen()) {
+        return;
+      }
       if (!isRecording) {
         selectSector(sector.id);
       }
@@ -472,6 +475,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     polygon.on('click', () => {
+      if (closeMobileSidebarIfOpen()) {
+        return;
+      }
       if (!isRecording) {
         selectSector(sub.parentSectorId);
       }
@@ -714,6 +720,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Map Click Listener to add stops when recording
   map.on('click', async (e) => {
+    // On mobile, if the bottom sheet panel is open, tapping the map closes it and does NOT add a stop
+    if (closeMobileSidebarIfOpen()) {
+      return;
+    }
+
     if (!isRecording) return;
 
     const lat = e.latlng.lat;
@@ -1391,6 +1402,14 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       sidebar.classList.remove('mobile-open');
     }
+  }
+
+  function closeMobileSidebarIfOpen() {
+    if (window.innerWidth <= 768 && currentSnap < SNAP_CLOSED) {
+      setSidebarPosition(SNAP_CLOSED, true);
+      return true;
+    }
+    return false;
   }
 
   function getTranslateY() {
