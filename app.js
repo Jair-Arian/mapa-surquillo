@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
       landmarks: ['La Calera de la Merced', 'Trabajadores Telefónicos', 'Open Plaza Angamos', 'Urb. CAPEBCO', 'El Pedregal', 'Aprovissp', 'Los Sauces I'],
       boundaries: ['Av. Tomás Marsano (Noroeste)', 'Av. Angamos Este (Norte)', 'Av. Aviación (Noreste)', 'Límite distrital Sur y Este'],
       polygon: [
-        [-12.112557, -77.012073],
+        [-12.112500, -77.012150],
         [-12.126454, -77.002746],
         [-12.125563, -77.002365],
         [-12.124340, -77.000934],
@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
         [-12.112776, -76.994277],
         [-12.111669, -76.993455],
         [-12.111253, -76.993611],
-        [-12.112557, -77.012073]
+        [-12.112500, -77.012150]
       ]
     },
     {
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
       landmarks: ['Barrio Médico', 'Barrio Obrero', 'Av. Sergio Bernales', 'Calle Juan José Calle', 'Calle Víctor Alzamora', 'San Lorenzo'],
       boundaries: ['Av. Angamos Este (Norte)', 'Av. República de Panamá (Oeste)', 'Av. Tomás Marsano (Este)', 'Av. Roca y Boloña (Sur)'],
       polygon: [
-        [-12.119439, -77.018269],
+        [-12.119420, -77.018280],
         [-12.120562, -77.018238],
         [-12.120544, -77.017286],
         [-12.119439, -77.017294],
@@ -60,9 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
         [-12.117870, -77.013258],
         [-12.117692, -77.013193],
         [-12.115685, -77.010178],
-        [-12.112509, -77.012163],
-        [-12.112948, -77.018389],
-        [-12.119439, -77.018269]
+        [-12.112500, -77.012150],
+        [-12.112900, -77.018400],
+        [-12.119420, -77.018280]
       ]
     },
     {
@@ -74,15 +74,15 @@ document.addEventListener('DOMContentLoaded', () => {
       landmarks: ['Surquillo Viejo', 'Mercado Central de Surquillo', 'Calle San Diego', 'Calle El Carmen', 'Jirón Gonzales Prada', 'Calle Leoncio Prado', 'Calle San Agustín', 'Jirón Dante', 'Aurora'],
       boundaries: ['Av. Angamos Este (Norte)', 'Av. Paseo de la República - Vía Expresa (Oeste)', 'Av. República de Panamá (Este)', 'Av. Roca y Boloña / Av. Roosevelt (Sur)'],
       polygon: [
-        [-12.119416, -77.018288],
-        [-12.112946, -77.018424],
-        [-12.113476, -77.025942],
+        [-12.119420, -77.018280],
+        [-12.112900, -77.018400],
+        [-12.113400, -77.025900],
         [-12.117284, -77.026188],
         [-12.119175, -77.025843],
         [-12.119139, -77.025227],
         [-12.119296, -77.024882],
         [-12.119850, -77.024118],
-        [-12.119416, -77.018288]
+        [-12.119420, -77.018280]
       ]
     },
     {
@@ -94,11 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
       landmarks: ['General I. Recavarren', 'Jirón Salaverry', 'Jirón Manuel Irribarren', 'Jirón Domingo Elías', 'Calle José Manuel Iturregui', 'Avenida Andrés Aramburú'],
       boundaries: ['Av. Andrés Aramburú (Norte)', 'Av. Paseo de la República - Vía Expresa (Oeste)', 'Av. República de Panamá (Este)', 'Av. Angamos Este (Sur)'],
       polygon: [
-        [-12.113381, -77.025877],
-        [-12.108573, -77.026383],
-        [-12.105693, -77.018692],
-        [-12.112875, -77.018458],
-        [-12.113381, -77.025877]
+        [-12.113400, -77.025900],
+        [-12.108489, -77.026408],
+        [-12.105650, -77.018700],
+        [-12.112900, -77.018400],
+        [-12.113400, -77.025900]
       ]
     },
     {
@@ -110,10 +110,11 @@ document.addEventListener('DOMContentLoaded', () => {
       landmarks: ['Luis Rebaza Córdova', 'El Cóndor', 'Avenida San Felipe', 'Calle San Lorenzo'],
       boundaries: ['Línea diagonal Aramburú-Angamos (Norte)', 'Av. Angamos Este (Sur)', 'Av. República de Panamá (Oeste)', 'Av. Tomás Marsano (Este)'],
       polygon: [
-        [-12.112839, -77.018397],
-        [-12.112429, -77.012284],
+        [-12.112900, -77.018400],
+        [-12.112500, -77.012150],
         [-12.104524, -77.018643],
-        [-12.112839, -77.018397]
+        [-12.105650, -77.018700],
+        [-12.112900, -77.018400]
       ]
     },
     {
@@ -125,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
       landmarks: ['Villa Victoria', 'La Merced', 'Urb. Primavera de Monterrico', 'El Aeropuerto', 'Santo Tomás', 'Calle Avogrado'],
       boundaries: ['Av. Andrés Aramburú / Gálvez Barrenechea (Norte)', 'Av. Tomás Marsano / Diagonal (Suroeste)', 'Av. Angamos Este (Sur)'],
       polygon: [
-        [-12.112464, -77.012120],
+        [-12.112500, -77.012150],
         [-12.112229, -77.009624],
         [-12.110256, -77.009788],
         [-12.110192, -77.009966],
@@ -140,9 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
         [-12.103526, -77.016149],
         [-12.103261, -77.016588],
         [-12.102284, -77.016467],
-        [-12.101955, -77.018774],
-        [-12.104315, -77.018622],
-        [-12.112464, -77.012120]
+        [-12.101980, -77.018800],
+        [-12.104524, -77.018643],
+        [-12.112500, -77.012150]
       ]
     },
     {
@@ -157,8 +158,8 @@ document.addEventListener('DOMContentLoaded', () => {
         [-12.108489, -77.026408],
         [-12.106500, -77.027082],
         [-12.102845, -77.027333],
-        [-12.101980, -77.018972],
-        [-12.105622, -77.018734],
+        [-12.101980, -77.018800],
+        [-12.105650, -77.018700],
         [-12.108489, -77.026408]
       ]
     }
@@ -549,6 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const routeModalBody = document.getElementById('route-modal-body');
   const routeCopyBtn = document.getElementById('route-copy-btn');
   const routeDownloadBtn = document.getElementById('route-download-btn');
+  const routeShareBtn = document.getElementById('route-share-btn');
   let activeModalTab = 'by-sector';
 
   // Toggle Recording State
@@ -969,12 +971,116 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('📥 Archivo CSV descargado con éxito (Columnas separadas para Excel).', 'success');
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // SHARE ROUTE LOGIC (URL PARAM + WHATSAPP / NATIVE SHARE)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  function generateRouteShareURL() {
+    if (routeStops.length === 0) return null;
+    const minimalData = routeStops.map(s => ({
+      a: s.address,
+      t: s.lat,
+      g: s.lng,
+      s: s.sectorId,
+      sub: s.subsectorId || ''
+    }));
+    const jsonStr = JSON.stringify(minimalData);
+    const encoded = encodeURIComponent(btoa(encodeURIComponent(jsonStr)));
+    const baseURL = window.location.origin + window.location.pathname;
+    return `${baseURL}?ruta=${encoded}`;
+  }
+
+  async function shareRoute() {
+    if (routeStops.length === 0) {
+      showToast('No hay paradas para compartir.', 'error');
+      return;
+    }
+
+    const shareURL = generateRouteShareURL();
+    if (!shareURL) return;
+
+    const shareText = `🗺️ Ruta en Surquillo (${routeStops.length} paradas). Abre el enlace para verla en el mapa:`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Ruta en Surquillo',
+          text: shareText,
+          url: shareURL
+        });
+        showToast('📲 ¡Ruta compartida con éxito!', 'success');
+        return;
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.warn('Navigator share error:', err);
+        } else {
+          return;
+        }
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(`${shareText}\n${shareURL}`);
+      showToast('🔗 ¡Enlace de ruta copiado al portapapeles!', 'success');
+    } catch (err) {
+      showToast('Error al copiar el enlace.', 'error');
+    }
+  }
+
+  function checkAndLoadSharedRoute() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedData = urlParams.get('ruta');
+    if (!sharedData) return;
+
+    try {
+      const jsonStr = decodeURIComponent(atob(decodeURIComponent(sharedData)));
+      const parsed = JSON.parse(jsonStr);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        routeStops = parsed.map((item, idx) => {
+          const sector = SECTORS.find(sec => sec.id === item.s);
+          const subsector = item.sub ? SUBSECTORS.find(sub => sub.id === item.sub) : null;
+          return {
+            id: 'stop_shared_' + idx + '_' + Date.now(),
+            address: item.a || `Parada ${idx + 1}`,
+            lat: parseFloat(item.t),
+            lng: parseFloat(item.g),
+            sectorId: item.s,
+            sectorName: sector ? sector.name : `Sector ${item.s}`,
+            sectorShortName: sector ? sector.shortName : '',
+            sectorColor: sector ? sector.color : '#3B82F6',
+            subsectorId: item.sub || null,
+            subsectorName: subsector ? subsector.name : (item.sub || null),
+            subsectorShortName: subsector ? subsector.shortName : '',
+            subsectorColor: subsector ? subsector.color : null
+          };
+        });
+
+        saveRouteToLocalStorage();
+        renderRouteOnMap();
+        renderRouteStopsUI();
+
+        if (routeStops.length > 0) {
+          const bounds = L.latLngBounds(routeStops.map(s => [s.lat, s.lng]));
+          map.fitBounds(bounds, { padding: [60, 60] });
+        }
+
+        showToast(`🗺️ ¡Ruta compartida cargada! (${routeStops.length} paradas)`, 'success');
+
+        const cleanURL = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanURL);
+      }
+    } catch (err) {
+      console.error('Error al decodificar la ruta compartida:', err);
+    }
+  }
+
   // Event Listeners for Route Controls
   routeToggleBtn?.addEventListener('click', toggleRecording);
   routeSummaryBtn?.addEventListener('click', openRouteModal);
   routeClearBtn?.addEventListener('click', clearAllStops);
   routeModalClose?.addEventListener('click', closeRouteModal);
   routeModalBackdrop?.addEventListener('click', closeRouteModal);
+  routeShareBtn?.addEventListener('click', shareRoute);
   routeCopyBtn?.addEventListener('click', copyRouteReport);
   routeDownloadBtn?.addEventListener('click', downloadRouteCSV);
 
@@ -1522,6 +1628,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
     loadingScreen?.classList.add('hidden');
   }, 2500);
+
+  // Check if URL has a shared route parameter and load it automatically
+  checkAndLoadSharedRoute();
 
   // ──────────────────────────────────────────────────────────────────────────
   // 16. WELCOME TOAST

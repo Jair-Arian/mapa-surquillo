@@ -1243,6 +1243,17 @@ p { line-height: 1.5; color: var(--text-secondary); font-size: 0.8125rem; }
   transition: all var(--transition-fast);
 }
 
+.route-export-btn--share {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.route-export-btn--share:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
 .route-export-btn--copy {
   background: var(--accent);
   color: #ffffff;
