@@ -368,16 +368,52 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. INITIALIZE LEAFLET MAP
   // ──────────────────────────────────────────────────────────────────────────
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 3. INITIALIZE MAP WITH GOOGLE MAPS TILES & LAYER CONTROL
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Google Maps Roadmap Layer (Calles oficiales actualizadas)
+  const googleStreets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    attribution: '&copy; Google Maps'
+  });
+
+  // Google Maps Satelital / Híbrido
+  const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    attribution: '&copy; Google Maps'
+  });
+
+  // Esri World Street Map (Alta Precisión)
+  const esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Tiles &copy; Esri'
+  });
+
+  // OpenStreetMap (Clásico)
+  const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  });
+
   const map = L.map('map', {
-    zoomControl: false
+    zoomControl: false,
+    layers: [googleStreets]
   }).setView([-12.1120, -77.0140], 15);
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | Datos: <a href="https://visor.geoperu.gob.pe/">GeoPerú</a>',
-    maxZoom: 19
-  }).addTo(map);
+  // Control de Capas (Permite cambiar entre Google Maps, Satelital, Esri y OSM)
+  const baseMaps = {
+    "🗺️ Google Maps (Calles Actualizadas)": googleStreets,
+    "🛰️ Google Maps (Satelital / Híbrido)": googleHybrid,
+    "🏙️ Esri Street Map (Alta Precisión)": esriStreets,
+    "🌐 OpenStreetMap": osmLayer
+  };
+
+  L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 4. DRAW OFFICIAL DISTRICT BOUNDARY
