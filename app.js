@@ -767,14 +767,29 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=es&zoom=18&addressdetails=1`;
     let addressName = `Ubicación en ${sector.name} (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
 
     try {
-      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'Accept-Language': 'es'
+        }
+      });
       if (response.ok) {
         const data = await response.json();
-        if (data && data.display_name) {
+        if (data && data.address) {
+          // Build address from structured parts for better accuracy
+          const addr = data.address;
+          const road = addr.road || addr.pedestrian || addr.footway || addr.street || '';
+          const number = addr.house_number || '';
+          if (road) {
+            addressName = number ? `${road} ${number}` : road;
+          } else if (data.display_name) {
+            addressName = formatAddressPeruvian(data.display_name);
+          }
+        } else if (data && data.display_name) {
           addressName = formatAddressPeruvian(data.display_name);
         }
       }
