@@ -2076,12 +2076,12 @@ document.addEventListener('DOMContentLoaded', () => {
   map.once('tileload', () => {
     setTimeout(() => {
       loadingScreen?.classList.add('hidden');
-    }, 400);
+    }, 200);
   });
 
   setTimeout(() => {
     loadingScreen?.classList.add('hidden');
-  }, 2500);
+  }, 800);
 
   // Check if URL has a shared route parameter and load it automatically
   checkAndLoadSharedRoute();

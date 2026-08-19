@@ -17,7 +17,7 @@
           crossorigin="anonymous" />
 
     <!-- App Styles -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=4.4.2">
 
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
@@ -31,6 +31,13 @@
             <p class="loading-subtitle">Cargando 7 Sectores Territoriales...</p>
         </div>
     </div>
+    <script>
+        // Failsafe inmediato: oculta la pantalla de carga tras máximo 1.5s
+        setTimeout(function() {
+            var ls = document.getElementById('loading-screen');
+            if (ls) ls.classList.add('hidden');
+        }, 1500);
+    </script>
 
     <!-- Header -->
     <header class="header" id="header">
@@ -436,7 +443,7 @@
             crossorigin="anonymous"></script>
 
     <!-- App Script -->
-    <script src="app.js"></script>
+    <script src="app.js?v=4.4.2"></script>
 </body>
 </html>
 
