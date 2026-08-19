@@ -502,6 +502,23 @@ document.addEventListener('DOMContentLoaded', () => {
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
+   * Translates and normalizes English street terms from OpenStreetMap into Spanish.
+   * e.g. "Tomás Marsano Avenue" -> "Avenida Tomás Marsano"
+   * e.g. "Dante Street" -> "Calle Dante"
+   */
+  function cleanSpanishStreetName(str) {
+    if (!str) return '';
+    let s = str.trim();
+    s = s.replace(/^(.*)\s+Avenue(?:\s+(\d+.*))?$/i, (match, p1, p2) => 'Avenida ' + p1 + (p2 ? ' ' + p2 : ''));
+    s = s.replace(/^Avenue\s+(.*)$/i, 'Avenida $1');
+    s = s.replace(/^(.*)\s+Street(?:\s+(\d+.*))?$/i, (match, p1, p2) => 'Calle ' + p1 + (p2 ? ' ' + p2 : ''));
+    s = s.replace(/^Street\s+(.*)$/i, 'Calle $1');
+    s = s.replace(/^(.*)\s+Road(?:\s+(\d+.*))?$/i, (match, p1, p2) => 'Avenida ' + p1 + (p2 ? ' ' + p2 : ''));
+    s = s.replace(/^Av\.?\s+/i, 'Avenida ');
+    return s.trim();
+  }
+
+  /**
    * Reformats a Nominatim display_name from Anglo format to Peruvian format.
    * "769, Avenida Tomás Marsano, ..." → "Avenida Tomás Marsano 769"
    * If the address doesn't start with a number, it's returned as-is (trimmed).
@@ -516,11 +533,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // If the first part is a house number (pure digits or digits with letter like "769" or "769A")
     if (first && second && /^\d+[A-Za-z]?$/.test(first)) {
-      return `${second} ${first}`;
+      return cleanSpanishStreetName(`${second} ${first}`);
     }
 
     // Otherwise return first two parts normally
-    return (first + (second ? ', ' + second : '')).trim();
+    return cleanSpanishStreetName((first + (second ? ', ' + second : '')).trim());
   }
 
   /**
@@ -540,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const json = await res.json();
         const p = json?.features?.[0]?.properties;
         if (p) {
-          const street = p.street || p.name || '';
+          const street = cleanSpanishStreetName(p.street || p.name || '');
           const num = p.housenumber || '';
           const loc = p.locality || '';
           if (street && num) {
@@ -549,7 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (street) {
             return loc && loc !== street && loc !== 'Surquillo' ? `${street} (${loc})` : street;
           }
-          if (p.name) return p.name;
+          if (p.name) return cleanSpanishStreetName(p.name);
         }
       }
     } catch (e) {
@@ -1337,7 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lng = f.geometry.coordinates[0];
             lat = f.geometry.coordinates[1];
             const p = f.properties;
-            const street = p.street || p.name || '';
+            const street = cleanSpanishStreetName(p.street || p.name || '');
             const num = p.housenumber || '';
             if (street && num) foundAddress = `${street} ${num}`;
             else if (street) foundAddress = street;
@@ -1455,10 +1472,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const lng = f.geometry.coordinates[0];
             const lat = f.geometry.coordinates[1];
             const p = f.properties;
-            const street = p.street || p.name || '';
+            const street = cleanSpanishStreetName(p.street || p.name || '');
             const num = p.housenumber || '';
             const loc = p.locality || '';
-            let address = street && num ? `${street} ${num}` : (street || p.name || loc);
+            let address = street && num ? `${street} ${num}` : (street || cleanSpanishStreetName(p.name) || loc);
             if (loc && loc !== street && loc !== 'Surquillo' && !address.includes(loc)) {
               address += ` (${loc})`;
             }
