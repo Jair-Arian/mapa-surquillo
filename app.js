@@ -498,8 +498,39 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 5C. FORMAT ADDRESS — PERUVIAN STYLE (Calle Nombre 123 instead of 123, Calle Nombre)
+  // 5C. GOOGLE MAPS PLATFORM GEODATA & PERUVIAN ADDRESS FORMATTING
   // ──────────────────────────────────────────────────────────────────────────
+
+  let googleGeocoder = null;
+  let googleAutocompleteService = null;
+
+  function initGoogleMapsServices() {
+    if (window.google && window.google.maps) {
+      if (google.maps.Geocoder && !googleGeocoder) {
+        googleGeocoder = new google.maps.Geocoder();
+      }
+      if (google.maps.places && google.maps.places.AutocompleteService && !googleAutocompleteService) {
+        googleAutocompleteService = new google.maps.places.AutocompleteService();
+      }
+    }
+  }
+
+  // Initialize immediately or on load
+  initGoogleMapsServices();
+  window.addEventListener('load', initGoogleMapsServices);
+
+  /**
+   * Cleans an official Google Maps formatted_address string
+   * e.g. "Av. Tomás Marsano 777, Surquillo 15036, Perú" -> "Av. Tomás Marsano 777"
+   */
+  function cleanGoogleAddress(raw) {
+    if (!raw) return '';
+    const parts = raw.split(',');
+    if (parts.length >= 1) {
+      return cleanSpanishStreetName(parts[0].trim());
+    }
+    return cleanSpanishStreetName(raw.replace(/,?\s*Per[úu]/i, '').trim());
+  }
 
   /**
    * Translates and normalizes English street terms from OpenStreetMap into Spanish.
@@ -541,15 +572,40 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * Reverse Geocode a lat/lng point using Photon (Komoot) with Nominatim fallback.
-   * Photon has no rate limits and returns street/house number cleanly.
+   * Reverse Geocode a lat/lng point with Google Maps Geocoder as primary (exact house numbers),
+   * and Photon as secondary fallback.
    * @param {number} lat - Latitude
    * @param {number} lng - Longitude
    * @param {object} sector - Matched Sector object
-   * @returns {Promise<string>} Formatted Spanish address
+   * @returns {Promise<string>} Formatted Spanish address with exact house number
    */
   async function reverseGeocodePoint(lat, lng, sector) {
-    // 1. Primary Strategy: Photon (Komoot OSM - Fast, no rate limiting, CORS ready)
+    initGoogleMapsServices();
+
+    // 1. PRIMARY: Official Google Maps Geocoder (Exact Door Numbers & Addresses)
+    if (googleGeocoder) {
+      try {
+        const googleResult = await new Promise((resolve) => {
+          googleGeocoder.geocode(
+            { location: { lat, lng }, language: 'es', region: 'pe' },
+            (results, status) => {
+              if (status === 'OK' && results && results.length > 0) {
+                // Find street_address or premise or route
+                const best = results.find(r => r.types.includes('street_address') || r.types.includes('premise')) || results[0];
+                resolve(cleanGoogleAddress(best.formatted_address));
+              } else {
+                resolve(null);
+              }
+            }
+          );
+        });
+        if (googleResult) return googleResult;
+      } catch (e) {
+        console.warn('Google reverse geocode error:', e);
+      }
+    }
+
+    // 2. Secondary Strategy: Photon (Komoot OSM - Fast fallback)
     try {
       const photonUrl = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`;
       const res = await fetch(photonUrl);
@@ -573,7 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Photon reverse geocode error:', e);
     }
 
-    // 2. Secondary Strategy: Nominatim OSM
+    // 3. Tertiary Strategy: Nominatim OSM
     try {
       const nomUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
       const res = await fetch(nomUrl);
@@ -582,8 +638,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data?.address) {
           const road = data.address.road || data.address.pedestrian || data.address.footway || data.address.street || '';
           const num = data.address.house_number || '';
-          if (road && num) return `${road} ${num}`;
-          if (road) return road;
+          if (road && num) return cleanSpanishStreetName(`${road} ${num}`);
+          if (road) return cleanSpanishStreetName(road);
         }
         if (data?.display_name) {
           return formatAddressPeruvian(data.display_name);
@@ -593,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Nominatim reverse geocode error:', e);
     }
 
-    // 3. Fallback: Sector name
+    // 4. Fallback: Sector name
     return sector ? `Punto en ${sector.name}` : `Ubicación (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
   }
 
@@ -1343,28 +1399,66 @@ document.addEventListener('DOMContentLoaded', () => {
     let foundAddress = query;
 
     try {
-      // 1. Primary Strategy: Photon (Fast & reliable)
-      try {
-        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=1`;
-        const res = await fetch(photonUrl);
-        if (res.ok) {
-          const json = await res.json();
-          if (json?.features && json.features.length > 0) {
-            const f = json.features[0];
-            lng = f.geometry.coordinates[0];
-            lat = f.geometry.coordinates[1];
-            const p = f.properties;
-            const street = cleanSpanishStreetName(p.street || p.name || '');
-            const num = p.housenumber || '';
-            if (street && num) foundAddress = `${street} ${num}`;
-            else if (street) foundAddress = street;
+      // 1. PRIMARY STRATEGY: Official Google Maps Geocoder
+      initGoogleMapsServices();
+      if (googleGeocoder) {
+        try {
+          const googleResult = await new Promise((resolve) => {
+            googleGeocoder.geocode(
+              {
+                address: query + ', Surquillo, Lima, Peru',
+                language: 'es',
+                region: 'pe'
+              },
+              (results, status) => {
+                if (status === 'OK' && results && results.length > 0) {
+                  const best = results[0];
+                  resolve({
+                    lat: best.geometry.location.lat(),
+                    lng: best.geometry.location.lng(),
+                    address: cleanGoogleAddress(best.formatted_address)
+                  });
+                } else {
+                  resolve(null);
+                }
+              }
+            );
+          });
+
+          if (googleResult) {
+            lat = googleResult.lat;
+            lng = googleResult.lng;
+            foundAddress = googleResult.address;
           }
+        } catch (e) {
+          console.warn('Google search error:', e);
         }
-      } catch (e) {
-        console.warn('Photon search error:', e);
       }
 
-      // 2. Secondary Strategy: Nominatim fallback
+      // 2. Secondary Strategy: Photon (Fast & reliable fallback)
+      if (lat === null) {
+        try {
+          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=1`;
+          const res = await fetch(photonUrl);
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.features && json.features.length > 0) {
+              const f = json.features[0];
+              lng = f.geometry.coordinates[0];
+              lat = f.geometry.coordinates[1];
+              const p = f.properties;
+              const street = cleanSpanishStreetName(p.street || p.name || '');
+              const num = p.housenumber || '';
+              if (street && num) foundAddress = `${street} ${num}`;
+              else if (street) foundAddress = street;
+            }
+          }
+        } catch (e) {
+          console.warn('Photon search error:', e);
+        }
+      }
+
+      // 3. Tertiary Strategy: Nominatim fallback
       if (lat === null) {
         try {
           const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=1`;
@@ -1436,7 +1530,7 @@ document.addEventListener('DOMContentLoaded', () => {
   searchBtn?.addEventListener('click', handleSearch);
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 12A. AUTOCOMPLETE SUGGESTIONS DROPDOWN
+  // 12A. AUTOCOMPLETE SUGGESTIONS DROPDOWN (GOOGLE PLACES + PHOTON)
   // ──────────────────────────────────────────────────────────────────────────
 
   const suggestionsEl = document.getElementById('search-suggestions');
@@ -1452,7 +1546,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  /** Fetch suggestions using Photon (fast & no rate limit errors) with Nominatim fallback */
+  /** Fetch suggestions using Google Places Autocomplete with Photon fallback */
   async function fetchSuggestions(query) {
     if (!query || query.length < 2) {
       hideSuggestions();
@@ -1460,8 +1554,64 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     currentSuggestions = [];
+    initGoogleMapsServices();
 
-    // 1. Try Photon (fast, no rate-limiting, CORS ready)
+    // 1. PRIMARY: Official Google Places Autocomplete
+    if (googleAutocompleteService && googleGeocoder) {
+      try {
+        const predictions = await new Promise((resolve) => {
+          googleAutocompleteService.getPlacePredictions(
+            {
+              input: query + ', Surquillo',
+              componentRestrictions: { country: 'pe' },
+              locationRestriction: {
+                north: -12.0900,
+                south: -12.1350,
+                east: -76.9850,
+                west: -77.0350
+              },
+              language: 'es'
+            },
+            (preds, status) => {
+              if (status === google.maps.places.PlacesServiceStatus.OK && preds) {
+                resolve(preds);
+              } else {
+                resolve([]);
+              }
+            }
+          );
+        });
+
+        if (predictions && predictions.length > 0) {
+          const geocodePromises = predictions.slice(0, 5).map(p => {
+            return new Promise((resolve) => {
+              googleGeocoder.geocode({ placeId: p.place_id }, (results, status) => {
+                if (status === 'OK' && results && results.length > 0) {
+                  const lat = results[0].geometry.location.lat();
+                  const lng = results[0].geometry.location.lng();
+                  const address = cleanGoogleAddress(results[0].formatted_address) || p.structured_formatting.main_text;
+                  const sector = findSectorForPoint(lat, lng);
+                  resolve({ lat, lng, address, sector });
+                } else {
+                  resolve(null);
+                }
+              });
+            });
+          });
+
+          const resolved = (await Promise.all(geocodePromises)).filter(Boolean);
+          if (resolved.length > 0) {
+            currentSuggestions = resolved;
+            renderSuggestions();
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Google autocomplete suggestions error:', e);
+      }
+    }
+
+    // 2. Secondary Fallback: Photon (fast & free)
     try {
       const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=5`;
       const res = await fetch(photonUrl);
@@ -1492,7 +1642,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Photon suggestions failed:', e);
     }
 
-    // 2. Nominatim fallback
+    // 3. Tertiary Fallback: Nominatim
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=5&addressdetails=1`;
       const response = await fetch(url);
