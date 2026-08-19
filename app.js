@@ -454,26 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
       className: 'sector-tooltip'
     });
 
-    polygon.on('click', (e) => {
-      if (closeMobileSidebarIfOpen()) {
-        return;
-      }
-      if (!isRecording) {
-        selectSector(sector.id);
-      }
-    });
-
-    polygon.on('mouseover', function () {
-      if (selectedSectorId !== sector.id) {
-        this.setStyle({ fillOpacity: 0.50, weight: 3.5 });
-      }
-    });
-
-    polygon.on('mouseout', function () {
-      if (selectedSectorId !== sector.id) {
-        this.setStyle({ fillOpacity: 0.28, weight: 2.5 });
-      }
-    });
+    // Sectors are visual-only — no click/hover interactions
 
     // Add subtle background watermark label for each sector ("Sector 1", "Sector 2", etc.)
     const center = polygon.getBounds().getCenter();
@@ -511,25 +492,36 @@ document.addEventListener('DOMContentLoaded', () => {
       className: 'sector-tooltip'
     });
 
-    polygon.on('click', () => {
-      if (closeMobileSidebarIfOpen()) {
-        return;
-      }
-      if (!isRecording) {
-        selectSector(sub.parentSectorId);
-      }
-    });
-
-    polygon.on('mouseover', function () {
-      this.setStyle({ fillOpacity: 0.40, weight: 2.5 });
-    });
-
-    polygon.on('mouseout', function () {
-      this.setStyle({ fillOpacity: 0.15, weight: 1.5 });
-    });
+    // Subsectors are visual-only — no click/hover interactions
 
     subsectorPolygonLayers.set(sub.id, polygon);
   });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 5C. FORMAT ADDRESS — PERUVIAN STYLE (Calle Nombre 123 instead of 123, Calle Nombre)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Reformats a Nominatim display_name from Anglo format to Peruvian format.
+   * "769, Avenida Tomás Marsano, ..." → "Avenida Tomás Marsano 769"
+   * If the address doesn't start with a number, it's returned as-is (trimmed).
+   * @param {string} displayName - Nominatim display_name string
+   * @returns {string} Formatted address
+   */
+  function formatAddressPeruvian(displayName) {
+    if (!displayName) return '';
+    const parts = displayName.split(',');
+    const first = parts[0]?.trim();
+    const second = parts[1]?.trim();
+
+    // If the first part is a house number (pure digits or digits with letter like "769" or "769A")
+    if (first && second && /^\d+[A-Za-z]?$/.test(first)) {
+      return `${second} ${first}`;
+    }
+
+    // Otherwise return first two parts normally
+    return (first + (second ? ', ' + second : '')).trim();
+  }
 
   // ──────────────────────────────────────────────────────────────────────────
   // 6. POINT-IN-POLYGON (RAY-CASTING)
@@ -783,8 +775,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (response.ok) {
         const data = await response.json();
         if (data && data.display_name) {
-          const parts = data.display_name.split(',');
-          addressName = (parts[0] + (parts[1] ? ', ' + parts[1] : '')).trim();
+          addressName = formatAddressPeruvian(data.display_name);
         }
       }
     } catch (err) {
@@ -1324,7 +1315,7 @@ document.addEventListener('DOMContentLoaded', () => {
           subInfo
         ).openPopup();
 
-        selectSector(foundSector.id);
+        map.setView([lat, lng], 17, { animate: true });
 
         // IF RECORDING, ADD AUTOMATICALLY TO ROUTE!
         if (isRecording) {
@@ -1332,18 +1323,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           const subLabel = foundSubsector ? ` → ${foundSubsector.name}` : '';
           showToast(`📍 ${foundSector.name}${subLabel}: ${foundSector.shortName}`, 'success');
-        }
-
-        const poly = polygonLayers.get(foundSector.id);
-        if (poly?._path) {
-          poly._path.classList.add('pulse-polygon');
-          setTimeout(() => poly._path.classList.remove('pulse-polygon'), 4500);
-        }
-
-        const card = document.querySelector(`.sector-card[data-sector="${foundSector.id}"]`);
-        if (card) {
-          card.classList.add('pulse');
-          setTimeout(() => card.classList.remove('pulse'), 4500);
         }
       } else {
         searchMarker.bindPopup(
@@ -1363,8 +1342,188 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   searchBtn?.addEventListener('click', handleSearch);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 12A. AUTOCOMPLETE SUGGESTIONS DROPDOWN
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const suggestionsEl = document.getElementById('search-suggestions');
+  let suggestionTimer = null;
+  let activeSuggestionIndex = -1;
+  let currentSuggestions = [];
+
+  /** Debounce helper */
+  function debounce(fn, delay) {
+    return (...args) => {
+      clearTimeout(suggestionTimer);
+      suggestionTimer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  /** Fetch suggestions from Nominatim and render the dropdown */
+  async function fetchSuggestions(query) {
+    if (!query || query.length < 3) {
+      hideSuggestions();
+      return;
+    }
+
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=5&addressdetails=1`;
+
+    try {
+      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!response.ok) return;
+      const data = await response.json();
+
+      if (!data || data.length === 0) {
+        hideSuggestions();
+        return;
+      }
+
+      currentSuggestions = data.map(item => {
+        const lat = parseFloat(item.lat);
+        const lng = parseFloat(item.lon);
+        const address = formatAddressPeruvian(item.display_name);
+        const sector = findSectorForPoint(lat, lng);
+        return { lat, lng, address, sector, displayName: item.display_name };
+      });
+
+      renderSuggestions();
+    } catch (err) {
+      console.log('Suggestions fetch error:', err);
+    }
+  }
+
+  /** Render the suggestions list */
+  function renderSuggestions() {
+    if (!suggestionsEl || currentSuggestions.length === 0) {
+      hideSuggestions();
+      return;
+    }
+
+    activeSuggestionIndex = -1;
+    suggestionsEl.innerHTML = currentSuggestions.map((s, i) => {
+      const sectorBadge = s.sector
+        ? `<span class="suggestion-sector" style="background:${s.sector.color}20;color:${s.sector.color};border:1px solid ${s.sector.color}40;">${s.sector.name}</span>`
+        : `<span class="suggestion-sector">Fuera de Surquillo</span>`;
+
+      return `<li role="option" data-index="${i}">
+        <span class="suggestion-icon">📍</span>
+        <span class="suggestion-address">${s.address}</span>
+        ${sectorBadge}
+      </li>`;
+    }).join('');
+
+    suggestionsEl.classList.add('visible');
+
+    // Add click listeners to each suggestion
+    suggestionsEl.querySelectorAll('li').forEach(li => {
+      li.addEventListener('click', () => {
+        const idx = parseInt(li.dataset.index, 10);
+        selectSuggestion(idx);
+      });
+    });
+  }
+
+  /** Hide the suggestions dropdown */
+  function hideSuggestions() {
+    if (suggestionsEl) {
+      suggestionsEl.classList.remove('visible');
+      suggestionsEl.innerHTML = '';
+    }
+    currentSuggestions = [];
+    activeSuggestionIndex = -1;
+  }
+
+  /** Select a suggestion by index */
+  function selectSuggestion(index) {
+    const s = currentSuggestions[index];
+    if (!s) return;
+
+    // Fill input with the formatted address
+    if (searchInput) searchInput.value = s.address;
+    hideSuggestions();
+
+    // Place marker and fly to location
+    if (searchMarker) map.removeLayer(searchMarker);
+
+    searchMarker = L.marker([s.lat, s.lng]).addTo(map);
+
+    if (s.sector) {
+      const foundSubsector = findSubsectorForPoint(s.lat, s.lng);
+      const subInfo = foundSubsector
+        ? `<br><span style="color:${foundSubsector.color};font-size:0.85em;">${foundSubsector.name}: ${foundSubsector.shortName}</span>`
+        : '';
+
+      searchMarker.bindPopup(
+        `<strong>${s.address}</strong><br>` +
+        `<span style="color:${s.sector.color};font-weight:600;">${s.sector.name}</span>` +
+        subInfo
+      ).openPopup();
+
+      map.setView([s.lat, s.lng], 17, { animate: true });
+
+      if (isRecording) {
+        addStopToRoute(s.address, s.lat, s.lng, s.sector);
+      } else {
+        const subLabel = foundSubsector ? ` → ${foundSubsector.name}` : '';
+        showToast(`📍 ${s.sector.name}${subLabel}: ${s.sector.shortName}`, 'success');
+      }
+    } else {
+      searchMarker.bindPopup(
+        `<strong>${s.address}</strong><br>` +
+        `<em>Ubicación fuera de los sectores de Surquillo</em>`
+      ).openPopup();
+
+      map.setView([s.lat, s.lng], 16);
+      showToast('⚠️ Dirección fuera de los 7 sectores de Surquillo.', 'error');
+    }
+  }
+
+  // Debounced input handler for suggestions
+  const debouncedFetch = debounce(fetchSuggestions, 350);
+
+  searchInput?.addEventListener('input', () => {
+    const query = searchInput.value.trim();
+    debouncedFetch(query);
+  });
+
+  // Keyboard navigation for suggestions + Enter to search
   searchInput?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') handleSearch();
+    const items = suggestionsEl?.querySelectorAll('li');
+    const isOpen = suggestionsEl?.classList.contains('visible') && items?.length > 0;
+
+    if (isOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, items.length - 1);
+        items.forEach((li, i) => li.classList.toggle('active', i === activeSuggestionIndex));
+        items[activeSuggestionIndex]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
+        items.forEach((li, i) => li.classList.toggle('active', i === activeSuggestionIndex));
+        items[activeSuggestionIndex]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeSuggestionIndex >= 0) {
+          selectSuggestion(activeSuggestionIndex);
+        } else {
+          hideSuggestions();
+          handleSearch();
+        }
+      } else if (e.key === 'Escape') {
+        hideSuggestions();
+      }
+    } else if (e.key === 'Enter') {
+      handleSearch();
+    }
+  });
+
+  // Close suggestions when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-section')) {
+      hideSuggestions();
+    }
   });
 
   clearBtn?.addEventListener('click', () => {
@@ -1373,8 +1532,7 @@ document.addEventListener('DOMContentLoaded', () => {
       searchMarker = null;
     }
     if (searchInput) searchInput.value = '';
-    hideInfoPanel();
-    clearSelection();
+    hideSuggestions();
     map.flyToBounds(districtOutline.getBounds(), { padding: [30, 30], duration: 1 });
     showToast('Búsqueda limpiada', 'info');
   });
@@ -1449,50 +1607,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 13. SECTOR CARD INTERACTIONS
+  // 13. SECTOR CARDS — NON-INTERACTIVE (visual reference only)
   // ──────────────────────────────────────────────────────────────────────────
-
-  document.querySelectorAll('.sector-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const id = card.dataset.sector;
-      if (id) selectSector(id);
-    });
-
-    card.addEventListener('mouseenter', () => {
-      const id = card.dataset.sector;
-      const poly = polygonLayers.get(id);
-      if (poly && selectedSectorId !== id) {
-        poly.setStyle({ fillOpacity: 0.50, weight: 3.5 });
-      }
-    });
-
-    card.addEventListener('mouseleave', () => {
-      const id = card.dataset.sector;
-      const poly = polygonLayers.get(id);
-      if (poly && selectedSectorId !== id) {
-        poly.setStyle({ fillOpacity: 0.28, weight: 2.5 });
-      }
-    });
-  });
-
-  // Subsector chip interactions
-  document.querySelectorAll('.subsector-chip').forEach(chip => {
-    chip.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const subId = chip.dataset.subsector;
-      const sub = SUBSECTORS.find(s => s.id === subId);
-      if (sub) {
-        const poly = subsectorPolygonLayers.get(subId);
-        if (poly) {
-          map.flyToBounds(poly.getBounds(), { padding: [50, 50], duration: 1.2 });
-          poly.setStyle({ fillOpacity: 0.55, weight: 3 });
-          setTimeout(() => poly.setStyle({ fillOpacity: 0.35, weight: 2.5, dashArray: '4, 4' }), 3000);
-        }
-        selectSector(sub.parentSectorId);
-        showToast(`📐 ${sub.name}: ${sub.shortName} (${sub.area})`, 'info');
-      }
-    });
-  });
+  // Sector cards and subsector chips are now display-only.
+  // No click/hover interactions needed.
 
   // ──────────────────────────────────────────────────────────────────────────
   // 13B. SECTORS PANEL TOGGLE

@@ -417,6 +417,87 @@ p { line-height: 1.5; color: var(--text-secondary); font-size: 0.8125rem; }
   100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
+/* ==========================================================================
+   SEARCH SUGGESTIONS (AUTOCOMPLETE DROPDOWN)
+   ========================================================================== */
+
+.search-section {
+  position: relative;
+}
+
+.search-suggestions {
+  display: none;
+  position: absolute;
+  left: var(--space-md);
+  right: var(--space-md);
+  top: auto;
+  z-index: 150;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  list-style: none;
+  padding: 0;
+  margin: -2px 0 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.search-suggestions.visible {
+  display: block;
+}
+
+.search-suggestions li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.875rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.search-suggestions li:last-child {
+  border-bottom: none;
+}
+
+.search-suggestions li:hover,
+.search-suggestions li.active {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--text-primary);
+}
+
+.search-suggestions li .suggestion-icon {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+
+.search-suggestions li .suggestion-address {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-suggestions li .suggestion-sector {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-muted);
+}
+
+.search-suggestions::-webkit-scrollbar { width: 4px; }
+.search-suggestions::-webkit-scrollbar-track { background: transparent; }
+.search-suggestions::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
 .clear-btn {
   display: flex;
   align-items: center;
