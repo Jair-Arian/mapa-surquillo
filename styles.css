@@ -1089,6 +1089,8 @@ p { line-height: 1.5; color: var(--text-secondary); font-size: 0.8125rem; }
   align-items: center;
   gap: 0.375rem;
   overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 
 .route-stop-index {
@@ -1110,7 +1112,9 @@ p { line-height: 1.5; color: var(--text-secondary); font-size: 0.8125rem; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 140px;
+  flex: 1;
+  min-width: 0;
+  max-width: 220px;
 }
 
 .route-stop-badge {

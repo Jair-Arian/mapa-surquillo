@@ -533,9 +533,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * Translates and normalizes English street terms from OpenStreetMap into Spanish.
+   * Translates and normalizes English street terms from OpenStreetMap or Google into Spanish.
    * e.g. "Tomás Marsano Avenue" -> "Avenida Tomás Marsano"
-   * e.g. "Dante Street" -> "Calle Dante"
+   * e.g. "C. Victor Mantilla 551" -> "Calle Victor Mantilla 551"
    */
   function cleanSpanishStreetName(str) {
     if (!str) return '';
@@ -546,7 +546,65 @@ document.addEventListener('DOMContentLoaded', () => {
     s = s.replace(/^Street\s+(.*)$/i, 'Calle $1');
     s = s.replace(/^(.*)\s+Road(?:\s+(\d+.*))?$/i, (match, p1, p2) => 'Avenida ' + p1 + (p2 ? ' ' + p2 : ''));
     s = s.replace(/^Av\.?\s+/i, 'Avenida ');
+    s = s.replace(/^C\.?\s+/i, 'Calle ');
+    s = s.replace(/^Cl\.?\s+/i, 'Calle ');
+    s = s.replace(/^Jr\.?\s+/i, 'Jirón ');
     return s.trim();
+  }
+
+  /**
+   * Extracts the most accurate Street Name and Door/House Number from Google Geocoding results.
+   * Prevents returning generic names like "Surquillo" or establishment names like "MINE DESIGN".
+   * @param {Array} results - Google Geocoder results array
+   * @returns {string|null}
+   */
+  function extractStreetAndNumberFromGoogle(results) {
+    if (!results || results.length === 0) return null;
+
+    // 1. Priority 1: Search for a component with BOTH route (street) and street_number
+    for (const r of results) {
+      if (!r.address_components) continue;
+      let route = '';
+      let streetNumber = '';
+
+      for (const comp of r.address_components) {
+        if (comp.types.includes('route')) {
+          route = comp.long_name || comp.short_name;
+        }
+        if (comp.types.includes('street_number')) {
+          streetNumber = comp.long_name || comp.short_name;
+        }
+      }
+
+      if (route && streetNumber) {
+        return cleanSpanishStreetName(`${route} ${streetNumber}`);
+      }
+    }
+
+    // 2. Priority 2: Look for any result with a route (street name)
+    for (const r of results) {
+      if (!r.address_components) continue;
+      for (const comp of r.address_components) {
+        if (comp.types.includes('route')) {
+          const route = comp.long_name || comp.short_name;
+          if (route && route.toLowerCase() !== 'surquillo' && route.toLowerCase() !== 'lima') {
+            return cleanSpanishStreetName(route);
+          }
+        }
+      }
+    }
+
+    // 3. Priority 3: Formatted address fallback (excluding generic city or plus codes)
+    for (const r of results) {
+      if (r.formatted_address) {
+        const cleaned = cleanGoogleAddress(r.formatted_address);
+        if (cleaned && cleaned.toLowerCase() !== 'surquillo' && cleaned.toLowerCase() !== 'lima' && !/^[A-Z0-9\+\s]+$/.test(cleaned)) {
+          return cleaned;
+        }
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -590,9 +648,8 @@ document.addEventListener('DOMContentLoaded', () => {
             { location: { lat, lng }, language: 'es', region: 'pe' },
             (results, status) => {
               if (status === 'OK' && results && results.length > 0) {
-                // Find street_address or premise or route
-                const best = results.find(r => r.types.includes('street_address') || r.types.includes('premise')) || results[0];
-                resolve(cleanGoogleAddress(best.formatted_address));
+                const extracted = extractStreetAndNumberFromGoogle(results);
+                resolve(extracted);
               } else {
                 resolve(null);
               }
