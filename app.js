@@ -1319,61 +1319,63 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     searchBtn?.classList.add('loading');
+    hideSuggestions();
 
     let lat = null;
     let lng = null;
     let foundAddress = query;
 
-    // 1. Primary Strategy: Photon (Fast & reliable)
     try {
-      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=1`;
-      const res = await fetch(photonUrl);
-      if (res.ok) {
-        const json = await res.json();
-        if (json?.features && json.features.length > 0) {
-          const f = json.features[0];
-          lng = f.geometry.coordinates[0];
-          lat = f.geometry.coordinates[1];
-          const p = f.properties;
-          const street = p.street || p.name || '';
-          const num = p.housenumber || '';
-          if (street && num) foundAddress = `${street} ${num}`;
-          else if (street) foundAddress = street;
-        }
-      }
-    } catch (e) {
-      console.warn('Photon search error:', e);
-    }
-
-    // 2. Secondary Strategy: Nominatim fallback
-    if (lat === null) {
+      // 1. Primary Strategy: Photon (Fast & reliable)
       try {
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=1`;
-        const response = await fetch(url);
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.length > 0) {
-            lat = parseFloat(data[0].lat);
-            lng = parseFloat(data[0].lon);
-            foundAddress = formatAddressPeruvian(data[0].display_name);
+        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=1`;
+        const res = await fetch(photonUrl);
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.features && json.features.length > 0) {
+            const f = json.features[0];
+            lng = f.geometry.coordinates[0];
+            lat = f.geometry.coordinates[1];
+            const p = f.properties;
+            const street = p.street || p.name || '';
+            const num = p.housenumber || '';
+            if (street && num) foundAddress = `${street} ${num}`;
+            else if (street) foundAddress = street;
           }
         }
-      } catch (err) {
-        console.error('Nominatim search error:', err);
+      } catch (e) {
+        console.warn('Photon search error:', e);
       }
-    }
 
-    if (lat === null || lng === null) {
-      showToast('No se encontraron resultados para esta dirección', 'error');
-      return;
-    }
+      // 2. Secondary Strategy: Nominatim fallback
+      if (lat === null) {
+        try {
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=1`;
+          const response = await fetch(url);
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.length > 0) {
+              lat = parseFloat(data[0].lat);
+              lng = parseFloat(data[0].lon);
+              foundAddress = formatAddressPeruvian(data[0].display_name);
+            }
+          }
+        } catch (err) {
+          console.error('Nominatim search error:', err);
+        }
+      }
 
-    const foundSector = findSectorForPoint(lat, lng);
-    const foundSubsector = findSubsectorForPoint(lat, lng);
+      if (lat === null || lng === null) {
+        showToast('No se encontraron resultados para esta dirección', 'error');
+        return;
+      }
 
-    if (searchMarker) {
-      map.removeLayer(searchMarker);
-    }
+      const foundSector = findSectorForPoint(lat, lng);
+      const foundSubsector = findSubsectorForPoint(lat, lng);
+
+      if (searchMarker) {
+        map.removeLayer(searchMarker);
+      }
 
       searchMarker = L.marker([lat, lng]).addTo(map);
 
@@ -1408,7 +1410,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.error('Error en búsqueda:', err);
-      showToast('Error al conectar con el servicio de geocodificación', 'error');
+      showToast('Error al buscar la dirección', 'error');
     } finally {
       searchBtn?.classList.remove('loading');
     }
