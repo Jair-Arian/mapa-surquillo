@@ -523,6 +523,63 @@ document.addEventListener('DOMContentLoaded', () => {
     return (first + (second ? ', ' + second : '')).trim();
   }
 
+  /**
+   * Reverse Geocode a lat/lng point using Photon (Komoot) with Nominatim fallback.
+   * Photon has no rate limits and returns street/house number cleanly.
+   * @param {number} lat - Latitude
+   * @param {number} lng - Longitude
+   * @param {object} sector - Matched Sector object
+   * @returns {Promise<string>} Formatted Spanish address
+   */
+  async function reverseGeocodePoint(lat, lng, sector) {
+    // 1. Primary Strategy: Photon (Komoot OSM - Fast, no rate limiting, CORS ready)
+    try {
+      const photonUrl = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`;
+      const res = await fetch(photonUrl);
+      if (res.ok) {
+        const json = await res.json();
+        const p = json?.features?.[0]?.properties;
+        if (p) {
+          const street = p.street || p.name || '';
+          const num = p.housenumber || '';
+          const loc = p.locality || '';
+          if (street && num) {
+            return `${street} ${num}`;
+          }
+          if (street) {
+            return loc && loc !== street && loc !== 'Surquillo' ? `${street} (${loc})` : street;
+          }
+          if (p.name) return p.name;
+        }
+      }
+    } catch (e) {
+      console.warn('Photon reverse geocode error:', e);
+    }
+
+    // 2. Secondary Strategy: Nominatim OSM
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+      const res = await fetch(nomUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.address) {
+          const road = data.address.road || data.address.pedestrian || data.address.footway || data.address.street || '';
+          const num = data.address.house_number || '';
+          if (road && num) return `${road} ${num}`;
+          if (road) return road;
+        }
+        if (data?.display_name) {
+          return formatAddressPeruvian(data.display_name);
+        }
+      }
+    } catch (e) {
+      console.warn('Nominatim reverse geocode error:', e);
+    }
+
+    // 3. Fallback: Sector name
+    return sector ? `Punto en ${sector.name}` : `Ubicación (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // 6. POINT-IN-POLYGON (RAY-CASTING)
   // ──────────────────────────────────────────────────────────────────────────
@@ -767,36 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=es&zoom=18&addressdetails=1`;
-    let addressName = `Ubicación en ${sector.name} (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'Accept': 'application/json',
-          'Accept-Language': 'es'
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.address) {
-          // Build address from structured parts for better accuracy
-          const addr = data.address;
-          const road = addr.road || addr.pedestrian || addr.footway || addr.street || '';
-          const number = addr.house_number || '';
-          if (road) {
-            addressName = number ? `${road} ${number}` : road;
-          } else if (data.display_name) {
-            addressName = formatAddressPeruvian(data.display_name);
-          }
-        } else if (data && data.display_name) {
-          addressName = formatAddressPeruvian(data.display_name);
-        }
-      }
-    } catch (err) {
-      console.log('Reverse geocode failed, using coordinates fallback');
-    }
-
+    const addressName = await reverseGeocodePoint(lat, lng, sector);
     addStopToRoute(addressName, lat, lng, sector);
   });
 
@@ -1292,30 +1320,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     searchBtn?.classList.add('loading');
 
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=1`;
+    let lat = null;
+    let lng = null;
+    let foundAddress = query;
 
+    // 1. Primary Strategy: Photon (Fast & reliable)
     try {
-      const response = await fetch(url, {
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = await response.json();
-
-      if (!data || data.length === 0) {
-        showToast('No se encontraron resultados para esta dirección', 'error');
-        return;
+      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=1`;
+      const res = await fetch(photonUrl);
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.features && json.features.length > 0) {
+          const f = json.features[0];
+          lng = f.geometry.coordinates[0];
+          lat = f.geometry.coordinates[1];
+          const p = f.properties;
+          const street = p.street || p.name || '';
+          const num = p.housenumber || '';
+          if (street && num) foundAddress = `${street} ${num}`;
+          else if (street) foundAddress = street;
+        }
       }
+    } catch (e) {
+      console.warn('Photon search error:', e);
+    }
 
-      const lat = parseFloat(data[0].lat);
-      const lng = parseFloat(data[0].lon);
-      const foundSector = findSectorForPoint(lat, lng);
-      const foundSubsector = findSubsectorForPoint(lat, lng);
-
-      if (searchMarker) {
-        map.removeLayer(searchMarker);
+    // 2. Secondary Strategy: Nominatim fallback
+    if (lat === null) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=1`;
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.length > 0) {
+            lat = parseFloat(data[0].lat);
+            lng = parseFloat(data[0].lon);
+            foundAddress = formatAddressPeruvian(data[0].display_name);
+          }
+        }
+      } catch (err) {
+        console.error('Nominatim search error:', err);
       }
+    }
+
+    if (lat === null || lng === null) {
+      showToast('No se encontraron resultados para esta dirección', 'error');
+      return;
+    }
+
+    const foundSector = findSectorForPoint(lat, lng);
+    const foundSubsector = findSubsectorForPoint(lat, lng);
+
+    if (searchMarker) {
+      map.removeLayer(searchMarker);
+    }
 
       searchMarker = L.marker([lat, lng]).addTo(map);
 
@@ -1325,7 +1383,7 @@ document.addEventListener('DOMContentLoaded', () => {
           : '';
 
         searchMarker.bindPopup(
-          `<strong>${query}</strong><br>` +
+          `<strong>${foundAddress}</strong><br>` +
           `<span style="color:${foundSector.color};font-weight:600;">${foundSector.name}</span>` +
           subInfo
         ).openPopup();
@@ -1334,14 +1392,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // IF RECORDING, ADD AUTOMATICALLY TO ROUTE!
         if (isRecording) {
-          addStopToRoute(query, lat, lng, foundSector);
+          addStopToRoute(foundAddress, lat, lng, foundSector);
         } else {
           const subLabel = foundSubsector ? ` → ${foundSubsector.name}` : '';
           showToast(`📍 ${foundSector.name}${subLabel}: ${foundSector.shortName}`, 'success');
         }
       } else {
         searchMarker.bindPopup(
-          `<strong>${query}</strong><br>` +
+          `<strong>${foundAddress}</strong><br>` +
           `<em>Ubicación fuera de los sectores de Surquillo</em>`
         ).openPopup();
 
@@ -1375,37 +1433,65 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  /** Fetch suggestions from Nominatim and render the dropdown */
+  /** Fetch suggestions using Photon (fast & no rate limit errors) with Nominatim fallback */
   async function fetchSuggestions(query) {
-    if (!query || query.length < 3) {
+    if (!query || query.length < 2) {
       hideSuggestions();
       return;
     }
 
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=5&addressdetails=1`;
-
+    // 1. Try Photon (fast, no rate-limiting, CORS ready)
     try {
-      const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!response.ok) return;
-      const data = await response.json();
-
-      if (!data || data.length === 0) {
-        hideSuggestions();
-        return;
+      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=5`;
+      const res = await fetch(photonUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.features && data.features.length > 0) {
+          currentSuggestions = data.features.map(f => {
+            const lng = f.geometry.coordinates[0];
+            const lat = f.geometry.coordinates[1];
+            const p = f.properties;
+            const street = p.street || p.name || '';
+            const num = p.housenumber || '';
+            const loc = p.locality || '';
+            let address = street && num ? `${street} ${num}` : (street || p.name || loc);
+            if (loc && loc !== street && loc !== 'Surquillo' && !address.includes(loc)) {
+              address += ` (${loc})`;
+            }
+            const sector = findSectorForPoint(lat, lng);
+            return { lat, lng, address, sector };
+          });
+          renderSuggestions();
+          return;
+        }
       }
+    } catch (e) {
+      console.warn('Photon suggestions failed:', e);
+    }
 
-      currentSuggestions = data.map(item => {
-        const lat = parseFloat(item.lat);
-        const lng = parseFloat(item.lon);
-        const address = formatAddressPeruvian(item.display_name);
-        const sector = findSectorForPoint(lat, lng);
-        return { lat, lng, address, sector, displayName: item.display_name };
-      });
-
-      renderSuggestions();
+    // 2. Nominatim fallback
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=5&addressdetails=1`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.length > 0) {
+          currentSuggestions = data.map(item => {
+            const lat = parseFloat(item.lat);
+            const lng = parseFloat(item.lon);
+            const address = formatAddressPeruvian(item.display_name);
+            const sector = findSectorForPoint(lat, lng);
+            return { lat, lng, address, sector };
+          });
+          renderSuggestions();
+          return;
+        }
+      }
     } catch (err) {
       console.log('Suggestions fetch error:', err);
     }
+
+    hideSuggestions();
   }
 
   /** Render the suggestions list */
