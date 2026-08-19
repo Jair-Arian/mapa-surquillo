@@ -577,6 +577,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 3. Fallback: Sector name
+    return sector ? `Punto en ${sector.name}` : `Ubicación (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // 5D. SMART AVENUE & BLOCK INTERPOLATOR (Tablas de Calibración de Surquillo)
   // ──────────────────────────────────────────────────────────────────────────
