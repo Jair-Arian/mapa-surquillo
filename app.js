@@ -577,7 +577,172 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 3. Fallback: Sector name
-    return sector ? `Punto en ${sector.name}` : `Ubicación (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+  // ──────────────────────────────────────────────────────────────────────────
+  // 5D. SMART AVENUE & BLOCK INTERPOLATOR (Tablas de Calibración de Surquillo)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const AVENUE_CALIBRATION = [
+    {
+      names: ['tomas marsano', 'tomás marsano', 'marsano'],
+      displayName: 'Av. Tomás Marsano',
+      waypoints: [
+        { block: 1, lat: -12.1118, lng: -77.0223 },   // Cruce con Angamos Este
+        { block: 7, lat: -12.1132, lng: -77.0205 },   // San Fernando / Mallplaza Angamos
+        { block: 12, lat: -12.1165, lng: -77.0160 },  // Principal / Sergio Bernales
+        { block: 20, lat: -12.1205, lng: -77.0105 },  // Manuel Villarán
+        { block: 28, lat: -12.1250, lng: -77.0040 },  // Benavides / Ovalo Higuereta
+        { block: 34, lat: -12.1265, lng: -77.0025 }   // Límite Surquillo / Surco
+      ]
+    },
+    {
+      names: ['angamos este', 'angamos'],
+      displayName: 'Av. Angamos Este',
+      waypoints: [
+        { block: 1, lat: -12.1114, lng: -77.0285 },   // Paseo de la República / Vía Expresa
+        { block: 4, lat: -12.1115, lng: -77.0255 },   // Manuel Irribarren / Mercado 1
+        { block: 7, lat: -12.1118, lng: -77.0223 },   // Tomás Marsano / Dante
+        { block: 12, lat: -12.1108, lng: -77.0165 },  // Calera / San Felipe
+        { block: 18, lat: -12.1098, lng: -77.0100 },  // Aviación / Open Plaza
+        { block: 24, lat: -12.1088, lng: -77.0040 }   // Límite San Borja / Primavera
+      ]
+    },
+    {
+      names: ['paseo de la republica', 'paseo de la república', 'via expresa', 'vía expresa'],
+      displayName: 'Av. Paseo de la República',
+      waypoints: [
+        { block: 40, lat: -12.1030, lng: -77.0270 },  // Domingo Orué
+        { block: 48, lat: -12.1085, lng: -77.0275 },  // González Prada
+        { block: 54, lat: -12.1114, lng: -77.0285 },  // Angamos Este
+        { block: 60, lat: -12.1160, lng: -77.0290 },  // Lizardo Montero
+        { block: 65, lat: -12.1210, lng: -77.0295 }   // Ricardo Palma / Límite Miraflores
+      ]
+    },
+    {
+      names: ['republica de panama', 'república de panamá', 'republica de panamá', 'panama', 'panamá'],
+      displayName: 'Av. República de Panamá',
+      waypoints: [
+        { block: 38, lat: -12.1025, lng: -77.0220 },  // Domingo Orué
+        { block: 45, lat: -12.1080, lng: -77.0221 },  // González Prada
+        { block: 52, lat: -12.1120, lng: -77.0222 },  // Angamos Este
+        { block: 58, lat: -12.1170, lng: -77.0223 },  // Sergio Bernales / Roca y Boloña
+        { block: 65, lat: -12.1225, lng: -77.0224 }   // Límite Surco / Miraflores
+      ]
+    },
+    {
+      names: ['aviacion', 'aviación'],
+      displayName: 'Av. Aviación',
+      waypoints: [
+        { block: 36, lat: -12.1050, lng: -77.0090 },  // Angamos / Open Plaza
+        { block: 42, lat: -12.1110, lng: -77.0085 },  // Manuel Villarán
+        { block: 48, lat: -12.1175, lng: -77.0080 },  // Principal
+        { block: 54, lat: -12.1245, lng: -77.0075 }   // Benavides / Ovalo Higuereta
+      ]
+    },
+    {
+      names: ['manuel villaran', 'manuel villarán', 'villaran', 'villarán'],
+      displayName: 'Av. Manuel Villarán',
+      waypoints: [
+        { block: 1, lat: -12.1180, lng: -77.0150 },   // Principal / Sergio Bernales
+        { block: 5, lat: -12.1205, lng: -77.0105 },   // Tomás Marsano
+        { block: 10, lat: -12.1220, lng: -77.0050 },  // Aviación / La Calera
+        { block: 14, lat: -12.1235, lng: -77.0005 }   // Límite Surco
+      ]
+    },
+    {
+      names: ['principal'],
+      displayName: 'Av. Principal',
+      waypoints: [
+        { block: 1, lat: -12.1115, lng: -77.0160 },   // Angamos
+        { block: 5, lat: -12.1160, lng: -77.0165 },   // Sergio Bernales
+        { block: 9, lat: -12.1210, lng: -77.0170 }    // Manuel Villarán
+      ]
+    },
+    {
+      names: ['dante'],
+      displayName: 'Calle Dante',
+      waypoints: [
+        { block: 1, lat: -12.1120, lng: -77.0230 },   // Angamos
+        { block: 5, lat: -12.1155, lng: -77.0232 },   // San Felipe
+        { block: 9, lat: -12.1190, lng: -77.0234 }    // Límite sur
+      ]
+    },
+    {
+      names: ['manuel irribarren', 'irribarren'],
+      displayName: 'Calle Manuel Irribarren',
+      waypoints: [
+        { block: 1, lat: -12.1060, lng: -77.0260 },   // Domingo Orué
+        { block: 6, lat: -12.1115, lng: -77.0255 },   // Angamos
+        { block: 12, lat: -12.1170, lng: -77.0250 }   // Lizardo Montero
+      ]
+    }
+  ];
+
+  /**
+   * Interpolate precise coordinates for a given avenue and street/block number in Surquillo
+   * @param {string} query
+   * @returns {{lat: number, lng: number, address: string}|null}
+   */
+  function interpolateAvenueLocation(query) {
+    if (!query) return null;
+
+    const clean = query.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Extract number (e.g. 777 -> block 7.77, or "cdra 7" -> block 7)
+    const numMatch = clean.match(/(?:cdra|cuadra|cda)?\s*(\d+)/);
+    if (!numMatch) return null;
+
+    const rawNum = parseInt(numMatch[1], 10);
+    let targetBlock = rawNum;
+    if (rawNum >= 100) {
+      targetBlock = rawNum / 100;
+    }
+
+    for (const ave of AVENUE_CALIBRATION) {
+      const matchedName = ave.names.some(n => {
+        const normN = n.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        return clean.includes(normN);
+      });
+
+      if (matchedName) {
+        const pts = ave.waypoints;
+        if (targetBlock <= pts[0].block) {
+          return {
+            lat: pts[0].lat,
+            lng: pts[0].lng,
+            address: `${ave.displayName} ${rawNum}`
+          };
+        }
+        if (targetBlock >= pts[pts.length - 1].block) {
+          const last = pts[pts.length - 1];
+          return {
+            lat: last.lat,
+            lng: last.lng,
+            address: `${ave.displayName} ${rawNum}`
+          };
+        }
+
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p1 = pts[i];
+          const p2 = pts[i + 1];
+          if (targetBlock >= p1.block && targetBlock <= p2.block) {
+            const t = (targetBlock - p1.block) / (p2.block - p1.block);
+            const lat = p1.lat + t * (p2.lat - p1.lat);
+            const lng = p1.lng + t * (p2.lng - p1.lng);
+            return {
+              lat: Number(lat.toFixed(6)),
+              lng: Number(lng.toFixed(6)),
+              address: `${ave.displayName} ${rawNum}`
+            };
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -1326,25 +1491,35 @@ document.addEventListener('DOMContentLoaded', () => {
     let foundAddress = query;
 
     try {
+      // 0. TOP PRIORITY: Smart Avenue & Block Interpolator for Surquillo
+      const interpolated = interpolateAvenueLocation(query);
+      if (interpolated) {
+        lat = interpolated.lat;
+        lng = interpolated.lng;
+        foundAddress = interpolated.address;
+      }
+
       // 1. Primary Strategy: Photon (Fast & reliable)
-      try {
-        const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=1`;
-        const res = await fetch(photonUrl);
-        if (res.ok) {
-          const json = await res.json();
-          if (json?.features && json.features.length > 0) {
-            const f = json.features[0];
-            lng = f.geometry.coordinates[0];
-            lat = f.geometry.coordinates[1];
-            const p = f.properties;
-            const street = p.street || p.name || '';
-            const num = p.housenumber || '';
-            if (street && num) foundAddress = `${street} ${num}`;
-            else if (street) foundAddress = street;
+      if (lat === null) {
+        try {
+          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=1`;
+          const res = await fetch(photonUrl);
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.features && json.features.length > 0) {
+              const f = json.features[0];
+              lng = f.geometry.coordinates[0];
+              lat = f.geometry.coordinates[1];
+              const p = f.properties;
+              const street = p.street || p.name || '';
+              const num = p.housenumber || '';
+              if (street && num) foundAddress = `${street} ${num}`;
+              else if (street) foundAddress = street;
+            }
           }
+        } catch (e) {
+          console.warn('Photon search error:', e);
         }
-      } catch (e) {
-        console.warn('Photon search error:', e);
       }
 
       // 2. Secondary Strategy: Nominatim fallback
@@ -1442,6 +1617,20 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    currentSuggestions = [];
+
+    // 0. If matching interpolated avenue, inject as top suggestion!
+    const interpolated = interpolateAvenueLocation(query);
+    if (interpolated) {
+      const sector = findSectorForPoint(interpolated.lat, interpolated.lng);
+      currentSuggestions.push({
+        lat: interpolated.lat,
+        lng: interpolated.lng,
+        address: interpolated.address,
+        sector
+      });
+    }
+
     // 1. Try Photon (fast, no rate-limiting, CORS ready)
     try {
       const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=5`;
@@ -1449,7 +1638,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const data = await res.json();
         if (data?.features && data.features.length > 0) {
-          currentSuggestions = data.features.map(f => {
+          data.features.forEach(f => {
             const lng = f.geometry.coordinates[0];
             const lat = f.geometry.coordinates[1];
             const p = f.properties;
@@ -1461,10 +1650,15 @@ document.addEventListener('DOMContentLoaded', () => {
               address += ` (${loc})`;
             }
             const sector = findSectorForPoint(lat, lng);
-            return { lat, lng, address, sector };
+            // Avoid duplicate with interpolated item
+            if (!currentSuggestions.some(s => s.address === address)) {
+              currentSuggestions.push({ lat, lng, address, sector });
+            }
           });
-          renderSuggestions();
-          return;
+          if (currentSuggestions.length > 0) {
+            renderSuggestions();
+            return;
+          }
         }
       }
     } catch (e) {
