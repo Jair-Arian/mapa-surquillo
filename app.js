@@ -1438,8 +1438,29 @@ document.addEventListener('DOMContentLoaded', () => {
   // ──────────────────────────────────────────────────────────────────────────
 
   const searchInput = document.getElementById('search-input');
+  const searchInputClearBtn = document.getElementById('search-input-clear');
   const searchBtn = document.getElementById('search-btn');
   const clearBtn = document.getElementById('clear-btn');
+
+  /** Update visibility of the X clear button inside search input */
+  function updateSearchClearBtnVisibility() {
+    if (!searchInputClearBtn || !searchInput) return;
+    if (searchInput.value.trim().length > 0) {
+      searchInputClearBtn.classList.add('visible');
+    } else {
+      searchInputClearBtn.classList.remove('visible');
+    }
+  }
+
+  // Click on X clear button inside search input
+  searchInputClearBtn?.addEventListener('click', () => {
+    if (searchInput) {
+      searchInput.value = '';
+      searchInput.focus();
+    }
+    updateSearchClearBtnVisibility();
+    hideSuggestions();
+  });
 
   async function handleSearch() {
     const query = searchInput?.value?.trim();
@@ -1771,7 +1792,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!s) return;
 
     // Fill input with the formatted address
-    if (searchInput) searchInput.value = s.address;
+    if (searchInput) {
+      searchInput.value = s.address;
+      updateSearchClearBtnVisibility();
+    }
     hideSuggestions();
 
     // Place marker and fly to location
@@ -1815,6 +1839,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   searchInput?.addEventListener('input', () => {
     const query = searchInput.value.trim();
+    updateSearchClearBtnVisibility();
     debouncedFetch(query);
   });
 
@@ -1863,6 +1888,7 @@ document.addEventListener('DOMContentLoaded', () => {
       searchMarker = null;
     }
     if (searchInput) searchInput.value = '';
+    updateSearchClearBtnVisibility();
     hideSuggestions();
     map.flyToBounds(districtOutline.getBounds(), { padding: [30, 30], duration: 1 });
     showToast('Búsqueda limpiada', 'info');
@@ -1906,6 +1932,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const transcript = event.results[0][0].transcript;
       if (searchInput) {
         searchInput.value = transcript;
+        updateSearchClearBtnVisibility();
       }
       showToast(`🎙️ Reconocido: "${transcript}"`, 'success');
       setTimeout(() => {
