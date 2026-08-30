@@ -1669,7 +1669,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   const lng = results[0].geometry.location.lng();
                   const address = cleanGoogleAddress(results[0].formatted_address) || p.structured_formatting.main_text;
                   const sector = findSectorForPoint(lat, lng);
-                  resolve({ lat, lng, address, sector });
+                  const subsector = sector ? findSubsectorForPoint(lat, lng) : null;
+                  resolve({ lat, lng, address, sector, subsector });
                 } else {
                   resolve(null);
                 }
@@ -1708,7 +1709,8 @@ document.addEventListener('DOMContentLoaded', () => {
               address += ` (${loc})`;
             }
             const sector = findSectorForPoint(lat, lng);
-            return { lat, lng, address, sector };
+            const subsector = sector ? findSubsectorForPoint(lat, lng) : null;
+            return { lat, lng, address, sector, subsector };
           });
           if (currentSuggestions.length > 0) {
             renderSuggestions();
@@ -1732,7 +1734,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const lng = parseFloat(item.lon);
             const address = formatAddressPeruvian(item.display_name);
             const sector = findSectorForPoint(lat, lng);
-            return { lat, lng, address, sector };
+            const subsector = sector ? findSubsectorForPoint(lat, lng) : null;
+            return { lat, lng, address, sector, subsector };
           });
           renderSuggestions();
           return;
@@ -1754,9 +1757,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     activeSuggestionIndex = -1;
     suggestionsEl.innerHTML = currentSuggestions.map((s, i) => {
-      const sectorBadge = s.sector
-        ? `<span class="suggestion-sector" style="background:${s.sector.color}20;color:${s.sector.color};border:1px solid ${s.sector.color}40;">${s.sector.name}</span>`
-        : `<span class="suggestion-sector">Fuera de Surquillo</span>`;
+      let sectorBadge;
+      if (!s.sector) {
+        // Fuera de Surquillo
+        sectorBadge = `<span class="suggestion-sector">Fuera de Surquillo</span>`;
+      } else if (s.subsector) {
+        // Tiene subsector → mostrar "Sector X · Subsector X-Y"
+        sectorBadge = `<span class="suggestion-sector" style="background:${s.subsector.color}20;color:${s.subsector.color};border:1px solid ${s.subsector.color}40;" title="${s.sector.name}">${s.sector.shortName} · ${s.subsector.name}</span>`;
+      } else {
+        // Solo sector, sin subsector
+        sectorBadge = `<span class="suggestion-sector" style="background:${s.sector.color}20;color:${s.sector.color};border:1px solid ${s.sector.color}40;">${s.sector.name}</span>`;
+      }
 
       return `<li role="option" data-index="${i}">
         <span class="suggestion-icon">📍</span>
