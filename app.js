@@ -1770,7 +1770,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       return `<li role="option" data-index="${i}">
-        <span class="suggestion-icon">📍</span>
         <span class="suggestion-address">${s.address}</span>
         ${sectorBadge}
       </li>`;

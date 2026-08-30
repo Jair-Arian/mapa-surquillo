@@ -517,10 +517,6 @@ p { line-height: 1.5; color: var(--text-secondary); font-size: 0.8125rem; }
   color: var(--text-primary);
 }
 
-.search-suggestions li .suggestion-icon {
-  flex-shrink: 0;
-  font-size: 0.9rem;
-}
 
 .search-suggestions li .suggestion-address {
   flex: 1;
@@ -531,12 +527,16 @@ p { line-height: 1.5; color: var(--text-secondary); font-size: 0.8125rem; }
 
 .search-suggestions li .suggestion-sector {
   flex-shrink: 0;
-  font-size: 0.65rem;
+  font-size: 0.58rem;
   font-weight: 600;
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: 9999px;
   background: rgba(255,255,255,0.08);
   color: var(--text-muted);
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .search-suggestions::-webkit-scrollbar { width: 4px; }
