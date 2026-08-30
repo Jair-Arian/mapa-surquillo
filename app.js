@@ -1763,7 +1763,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sectorBadge = `<span class="suggestion-sector">Fuera de Surquillo</span>`;
       } else if (s.subsector) {
         // Tiene subsector → mostrar "Sector X · Subsector X-Y"
-        sectorBadge = `<span class="suggestion-sector" style="background:${s.subsector.color}20;color:${s.subsector.color};border:1px solid ${s.subsector.color}40;" title="${s.sector.name}">${s.sector.shortName} · ${s.subsector.name}</span>`;
+        sectorBadge = `<span class="suggestion-sector" style="background:${s.subsector.color}20;color:${s.subsector.color};border:1px solid ${s.subsector.color}40;">${s.sector.name} · ${s.subsector.name}</span>`;
       } else {
         // Solo sector, sin subsector
         sectorBadge = `<span class="suggestion-sector" style="background:${s.sector.color}20;color:${s.sector.color};border:1px solid ${s.sector.color}40;">${s.sector.name}</span>`;
