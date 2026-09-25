@@ -1433,37 +1433,67 @@ document.addEventListener('DOMContentLoaded', () => {
     hideSuggestions();
   });
 
-  async function handleSearch() {
-    const query = searchInput?.value?.trim();
-    if (!query) {
+  
+  // ─── HELPER: NÚMEROS DE CASA Y CUADRAS INTELIGENTES (OSM / PHOTON) ───────
+  function extractHouseNumber(query) {
+    if (!query) return '';
+    const m = query.match(/(?:(?:n[°º]|num|numero|cdra\.?|cuadra)\s*)?(\b\d{1,5}\b)/i);
+    return m ? m[1] : '';
+  }
+
+  function pickBestFeatureForStreet(features, userNum) {
+    if (!features || features.length === 0) return null;
+    if (!userNum) return features[0];
+    // 1. If an exact housenumber node exists, use it
+    const exact = features.find(f => f.properties && f.properties.housenumber == userNum);
+    if (exact) return exact;
+    // 2. Select segment corresponding to the block/cuadra
+    const num = parseInt(userNum, 10);
+    if (isNaN(num)) return features[0];
+    const cuadra = Math.max(1, Math.floor(num / 100));
+    const coords = features.map(f => f.geometry.coordinates);
+    const minLng = Math.min(...coords.map(c => c[0])), maxLng = Math.max(...coords.map(c => c[0]));
+    const minLat = Math.min(...coords.map(c => c[1])), maxLat = Math.max(...coords.map(c => c[1]));
+    const isEastWest = (maxLng - minLng) > (maxLat - minLat);
+    const sorted = [...features].sort((a,b) => isEastWest ? (a.geometry.coordinates[0] - b.geometry.coordinates[0]) : (b.geometry.coordinates[1] - a.geometry.coordinates[1]));
+    const approxMaxCuadras = Math.max(15, Math.ceil(num / 100) + 2);
+    const ratio = Math.min(1, Math.max(0, (cuadra - 1) / approxMaxCuadras));
+    const idx = Math.min(sorted.length - 1, Math.round(ratio * (sorted.length - 1)));
+    return sorted[idx];
+  }
+async function handleSearch() {
+    const rawQuery = searchInput?.value?.trim();
+    if (!rawQuery) {
       showToast('Por favor ingrese una dirección', 'error');
       return;
     }
 
+    const userNum = extractHouseNumber(rawQuery);
     searchBtn?.classList.add('loading');
     hideSuggestions();
 
     let lat = null;
     let lng = null;
-    let foundAddress = query;
+    let foundAddress = rawQuery;
 
     try {
-      // 1. PRIMARY STRATEGY: Photon (Komoot OSM - Rápido y Gratuito) (Fast & reliable fallback)
+      // 1. PRIMARY STRATEGY: Photon (Komoot OSM - Búsqueda Inteligente de Cuadra y Número)
       if (lat === null) {
         try {
-          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=1`;
+          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(rawQuery + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=10`;
           const res = await fetch(photonUrl);
           if (res.ok) {
             const json = await res.json();
             if (json?.features && json.features.length > 0) {
-              const f = json.features[0];
-              lng = f.geometry.coordinates[0];
-              lat = f.geometry.coordinates[1];
-              const p = f.properties;
+              const bestFeature = pickBestFeatureForStreet(json.features, userNum);
+              lng = bestFeature.geometry.coordinates[0];
+              lat = bestFeature.geometry.coordinates[1];
+              const p = bestFeature.properties;
               const street = cleanSpanishStreetName(p.street || p.name || '');
-              const num = p.housenumber || '';
+              const num = p.housenumber || userNum || '';
               if (street && num) foundAddress = `${street} ${num}`;
               else if (street) foundAddress = street;
+              else if (p.name) foundAddress = cleanSpanishStreetName(p.name);
             }
           }
         } catch (e) {
@@ -1471,17 +1501,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // 3. Tertiary Strategy: Nominatim fallback
+      // 2. Secondary Strategy: Nominatim fallback
       if (lat === null) {
         try {
-          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=1`;
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(rawQuery + ', Surquillo, Lima, Peru')}&limit=5&addressdetails=1`;
           const response = await fetch(url);
           if (response.ok) {
             const data = await response.json();
             if (data && data.length > 0) {
               lat = parseFloat(data[0].lat);
               lng = parseFloat(data[0].lon);
-              foundAddress = formatAddressPeruvian(data[0].display_name);
+              let addr = formatAddressPeruvian(data[0].display_name);
+              if (userNum && !addr.match(/\b\d+\b/)) addr = `${addr} ${userNum}`;
+              foundAddress = addr;
             }
           }
         } catch (err) {
@@ -1494,8 +1526,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      
+
       const foundSector = findSectorForPoint(lat, lng);
-      const foundSubsector = findSubsectorForPoint(lat, lng);
+      const foundSubsector = findSubsectorForPoint ? findSubsectorForPoint(lat, lng) : null;
 
       if (searchMarker) {
         map.removeLayer(searchMarker);
@@ -1521,7 +1555,7 @@ document.addEventListener('DOMContentLoaded', () => {
           addStopToRoute(foundAddress, lat, lng, foundSector);
         } else {
           const subLabel = foundSubsector ? ` → ${foundSubsector.name}` : '';
-          showToast(`📍 ${foundSector.name}${subLabel}: ${foundSector.shortName}`, 'success');
+          showToast(`📍 ${foundSector.name}${subLabel}: ${foundSector.shortName || foundAddress}`, 'success');
         }
       } else {
         searchMarker.bindPopup(
@@ -1530,7 +1564,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ).openPopup();
 
         map.setView([lat, lng], 16);
-        showToast('⚠️ Dirección fuera de los 7 sectores de Surquillo.', 'error');
+        showToast('⚠️ Dirección fuera de los sectores de Surquillo.', 'error');
       }
     } catch (err) {
       console.error('Error en búsqueda:', err);
@@ -1538,6 +1572,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       searchBtn?.classList.remove('loading');
     }
+  }
   }
 
   searchBtn?.addEventListener('click', handleSearch);
@@ -1566,12 +1601,12 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const userNum = extractHouseNumber(query);
     currentSuggestions = [];
-    initGoogleMapsServices();
 
-    // 1. PRIMARY STRATEGY: Photon (Komoot OSM Autocomplete - Rápido y Gratuito) (fast & free)
+    // 1. PRIMARY STRATEGY: Photon Autocomplete
     try {
-      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=5`;
+      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=8`;
       const res = await fetch(photonUrl);
       if (res.ok) {
         const data = await res.json();
@@ -1581,7 +1616,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lat = f.geometry.coordinates[1];
             const p = f.properties;
             const street = cleanSpanishStreetName(p.street || p.name || '');
-            const num = p.housenumber || '';
+            const num = p.housenumber || userNum || '';
             const loc = p.locality || '';
             let address = street && num ? `${street} ${num}` : (street || cleanSpanishStreetName(p.name) || loc);
             if (loc && loc !== street && loc !== 'Surquillo' && !address.includes(loc)) {
@@ -1590,6 +1625,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const sector = findSectorForPoint(lat, lng);
             return { lat, lng, address, sector };
           });
+          
           if (currentSuggestions.length > 0) {
             renderSuggestions();
             return;
@@ -1600,7 +1636,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Photon suggestions failed:', e);
     }
 
-    // 3. Tertiary Fallback: Nominatim
+    // 2. Secondary Fallback: Nominatim
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Surquillo, Lima, Peru')}&limit=5&addressdetails=1`;
       const response = await fetch(url);
@@ -1610,12 +1646,16 @@ document.addEventListener('DOMContentLoaded', () => {
           currentSuggestions = data.map(item => {
             const lat = parseFloat(item.lat);
             const lng = parseFloat(item.lon);
-            const address = formatAddressPeruvian(item.display_name);
+            let address = formatAddressPeruvian(item.display_name);
+            if (userNum && !address.match(/\b\d+\b/)) address = `${address} ${userNum}`;
             const sector = findSectorForPoint(lat, lng);
             return { lat, lng, address, sector };
           });
-          renderSuggestions();
-          return;
+          
+          if (currentSuggestions.length > 0) {
+            renderSuggestions();
+            return;
+          }
         }
       }
     } catch (err) {
