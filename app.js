@@ -1461,7 +1461,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const idx = Math.min(sorted.length - 1, Math.round(ratio * (sorted.length - 1)));
     return sorted[idx];
   }
-async function handleSearch() {
+  // ─── GEOCODIFICADOR OFICIAL GEOPERÚ / GEOIDEP (100% GRATUITO Y SIN CLAVES) ───
+  async function searchGeoPeru(rawQuery, districtName = 'Surquillo') {
+    const userNum = extractHouseNumber(rawQuery);
+    const cleaned = rawQuery.replace(/^(calle|av\.?|avenida|jr\.?|jir[oó]n|pasaje|psje\.?)\s+/i, '').trim();
+    const variations = [
+      rawQuery,
+      cleaned,
+      `${rawQuery} ${districtName}`,
+      `${cleaned} ${districtName}`
+    ];
+    const seen = new Set();
+    for (const v of variations) {
+      if (!v || seen.has(v)) continue;
+      seen.add(v);
+      try {
+        const url = `https://www.geoidep.gob.pe/geoapify?q=${encodeURIComponent(v)}`;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (!data?.features || data.features.length === 0) continue;
+
+        for (const f of data.features) {
+          const type = f.properties?.result_type;
+          // Ignorar coincidencias genéricas a nivel de distrito/departamento cuando se busca calle o número
+          if (type === 'city' || type === 'administrative' || type === 'county' || type === 'state' || type === 'country') {
+            continue;
+          }
+          const coords = f.geometry?.coordinates;
+          if (!coords || coords.length < 2) continue;
+          const lng = coords[0];
+          const lat = coords[1];
+
+          let addr = f.properties.address_line1 || f.properties.street || f.properties.formatted?.split(',')[0] || rawQuery;
+          addr = cleanSpanishStreetName(addr);
+          if (userNum && !addr.match(/\b\d+\b/)) {
+            addr = `${addr} ${userNum}`;
+          }
+          return { lat, lng, address: addr, feature: f };
+        }
+      } catch (err) {
+        console.warn('GeoPerú search error for variation:', v, err);
+      }
+    }
+    return null;
+  }
+
+  async function handleSearch() {
     const rawQuery = searchInput?.value?.trim();
     if (!rawQuery) {
       showToast('Por favor ingrese una dirección', 'error');
@@ -1477,7 +1523,22 @@ async function handleSearch() {
     let foundAddress = rawQuery;
 
     try {
-      // 1. PRIMARY STRATEGY: Photon (Komoot OSM - Búsqueda Inteligente de Cuadra y Número)
+      // 1. PRIMARY STRATEGY: GeoPerú (GEOIDEP oficial del Estado Peruano - 100% Preciso y Gratuito)
+      try {
+        const geoResult = await searchGeoPeru(rawQuery, 'Surquillo');
+        if (geoResult) {
+          const matchedSector = findSectorForPoint(geoResult.lat, geoResult.lng);
+          if (matchedSector) {
+            lat = geoResult.lat;
+            lng = geoResult.lng;
+            foundAddress = geoResult.address;
+          }
+        }
+      } catch (e) {
+        console.warn('GeoPerú primary search error:', e);
+      }
+
+      // 2. Secondary Strategy: Photon (Komoot OSM - Búsqueda Inteligente de Cuadra y Número)
       if (lat === null) {
         try {
           const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(rawQuery + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=10`;
@@ -1501,7 +1562,7 @@ async function handleSearch() {
         }
       }
 
-      // 2. Secondary Strategy: Nominatim fallback
+      // 3. Tertiary Strategy: Nominatim fallback
       if (lat === null) {
         try {
           const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(rawQuery + ', Surquillo, Lima, Peru')}&limit=5&addressdetails=1`;
@@ -1525,8 +1586,6 @@ async function handleSearch() {
         showToast('No se encontraron resultados para esta dirección', 'error');
         return;
       }
-
-      
 
       const foundSector = findSectorForPoint(lat, lng);
       const foundSubsector = findSubsectorForPoint ? findSubsectorForPoint(lat, lng) : null;
@@ -1573,7 +1632,6 @@ async function handleSearch() {
       searchBtn?.classList.remove('loading');
     }
   }
-  }
 
   searchBtn?.addEventListener('click', handleSearch);
 
@@ -1604,7 +1662,40 @@ async function handleSearch() {
     const userNum = extractHouseNumber(query);
     currentSuggestions = [];
 
-    // 1. PRIMARY STRATEGY: Photon Autocomplete
+    // 1. PRIMARY STRATEGY: GeoPerú (GEOIDEP Autocomplete)
+    try {
+      const geoUrl = `https://www.geoidep.gob.pe/geoapify?q=${encodeURIComponent(query + ' Surquillo')}`;
+      const res = await fetch(geoUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.features && data.features.length > 0) {
+          const valid = data.features.filter(f => {
+            const type = f.properties?.result_type;
+            return type !== 'city' && type !== 'administrative' && type !== 'county';
+          });
+          if (valid.length > 0) {
+            currentSuggestions = valid.map(f => {
+              const lng = f.geometry.coordinates[0];
+              const lat = f.geometry.coordinates[1];
+              const p = f.properties;
+              let address = cleanSpanishStreetName(p.address_line1 || p.street || p.name || '');
+              if (userNum && !address.match(/\b\d+\b/)) address += ` ${userNum}`;
+              const sector = findSectorForPoint(lat, lng);
+              return { lat, lng, address, sector };
+            });
+            currentSuggestions = currentSuggestions.filter(s => s.sector !== null);
+            if (currentSuggestions.length > 0) {
+              renderSuggestions();
+              return;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('GeoPerú suggestions failed:', e);
+    }
+
+    // 2. Secondary Strategy: Photon Autocomplete
     try {
       const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=8`;
       const res = await fetch(photonUrl);
