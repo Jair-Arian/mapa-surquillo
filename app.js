@@ -1482,23 +1482,41 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         if (!data?.features || data.features.length === 0) continue;
 
-        for (const f of data.features) {
+        const valid = data.features.filter(f => {
           const type = f.properties?.result_type;
-          // Ignorar coincidencias genéricas a nivel de distrito/departamento cuando se busca calle o número
-          if (type === 'city' || type === 'administrative' || type === 'county' || type === 'state' || type === 'country') {
-            continue;
-          }
-          const coords = f.geometry?.coordinates;
-          if (!coords || coords.length < 2) continue;
-          const lng = coords[0];
-          const lat = coords[1];
+          return !['city', 'administrative', 'county', 'state', 'country'].includes(type);
+        });
+        if (valid.length === 0) continue;
 
-          let addr = f.properties.address_line1 || f.properties.street || f.properties.formatted?.split(',')[0] || rawQuery;
-          addr = cleanSpanishStreetName(addr);
-          if (userNum && !addr.match(/\b\d+\b/)) {
-            addr = `${addr} ${userNum}`;
+        // Priorizar coincidencia exacta de número de puerta o edificio
+        if (userNum) {
+          valid.sort((a, b) => {
+            const aNum = (a.properties?.housenumber == userNum || a.properties?.address_line1?.includes(userNum)) ? 3 : (a.properties?.result_type === 'building' ? 2 : 0);
+            const bNum = (b.properties?.housenumber == userNum || b.properties?.address_line1?.includes(userNum)) ? 3 : (b.properties?.result_type === 'building' ? 2 : 0);
+            return bNum - aNum;
+          });
+        }
+
+        let chosen = null;
+        if (userNum) {
+          chosen = valid.find(f => f.properties?.housenumber == userNum || f.properties?.address_line1?.includes(userNum) || f.properties?.result_type === 'building');
+        }
+        if (!chosen) {
+          chosen = pickBestFeatureForStreet(valid, userNum);
+        }
+
+        if (chosen) {
+          const coords = chosen.geometry?.coordinates;
+          if (coords && coords.length >= 2) {
+            const lng = coords[0];
+            const lat = coords[1];
+            let addr = chosen.properties.address_line1 || chosen.properties.street || chosen.properties.formatted?.split(',')[0] || rawQuery;
+            addr = cleanSpanishStreetName(addr);
+            if (userNum && !addr.match(/\b\d+\b/)) {
+              addr = `${addr} ${userNum}`;
+            }
+            return { lat, lng, address: addr, feature: chosen };
           }
-          return { lat, lng, address: addr, feature: f };
         }
       } catch (err) {
         console.warn('GeoPerú search error for variation:', v, err);
@@ -1674,16 +1692,43 @@ document.addEventListener('DOMContentLoaded', () => {
             return type !== 'city' && type !== 'administrative' && type !== 'county';
           });
           if (valid.length > 0) {
-            currentSuggestions = valid.map(f => {
+            // Si el usuario especificó número, priorizar coincidencia exacta
+            if (userNum) {
+              valid.sort((a, b) => {
+                const aNum = (a.properties?.housenumber == userNum || a.properties?.address_line1?.includes(userNum)) ? 3 : (a.properties?.result_type === 'building' ? 2 : 0);
+                const bNum = (b.properties?.housenumber == userNum || b.properties?.address_line1?.includes(userNum)) ? 3 : (b.properties?.result_type === 'building' ? 2 : 0);
+                return bNum - aNum;
+              });
+            }
+
+            const seenAddresses = new Set();
+            const suggestionsList = [];
+            const hasExactBuilding = userNum && valid.some(f => f.properties?.housenumber == userNum || f.properties?.result_type === 'building');
+
+            for (const f of valid) {
               const lng = f.geometry.coordinates[0];
               const lat = f.geometry.coordinates[1];
               const p = f.properties;
+
+              // Si ya tenemos el inmueble exacto, no mostrar tramos de calle genéricos con el número pegado
+              if (hasExactBuilding && p.housenumber != userNum && p.result_type !== 'building') {
+                continue;
+              }
+
               let address = cleanSpanishStreetName(p.address_line1 || p.street || p.name || '');
               if (userNum && !address.match(/\b\d+\b/)) address += ` ${userNum}`;
+
+              const normKey = address.toLowerCase();
+              if (seenAddresses.has(normKey)) continue;
+              seenAddresses.add(normKey);
+
               const sector = findSectorForPoint(lat, lng);
-              return { lat, lng, address, sector };
-            });
-            currentSuggestions = currentSuggestions.filter(s => s.sector !== null);
+              if (sector) {
+                suggestionsList.push({ lat, lng, address, sector });
+              }
+            }
+
+            currentSuggestions = suggestionsList;
             if (currentSuggestions.length > 0) {
               renderSuggestions();
               return;
