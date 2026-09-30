@@ -1444,22 +1444,66 @@ document.addEventListener('DOMContentLoaded', () => {
   function pickBestFeatureForStreet(features, userNum) {
     if (!features || features.length === 0) return null;
     if (!userNum) return features[0];
-    // 1. If an exact housenumber node exists, use it
+
+    // 1. If an exact housenumber node exists, use it immediately
     const exact = features.find(f => f.properties && f.properties.housenumber == userNum);
     if (exact) return exact;
-    // 2. Select segment corresponding to the block/cuadra
+
     const num = parseInt(userNum, 10);
     if (isNaN(num)) return features[0];
     const cuadra = Math.max(1, Math.floor(num / 100));
-    const coords = features.map(f => f.geometry.coordinates);
+
+    const validFeatures = features.filter(f => f.geometry && Array.isArray(f.geometry.coordinates) && f.geometry.coordinates.length >= 2);
+    if (validFeatures.length === 0) return features[0];
+    if (validFeatures.length === 1) return validFeatures[0];
+
+    const coords = validFeatures.map(f => f.geometry.coordinates);
     const minLng = Math.min(...coords.map(c => c[0])), maxLng = Math.max(...coords.map(c => c[0]));
     const minLat = Math.min(...coords.map(c => c[1])), maxLat = Math.max(...coords.map(c => c[1]));
     const isEastWest = (maxLng - minLng) > (maxLat - minLat);
-    const sorted = [...features].sort((a,b) => isEastWest ? (a.geometry.coordinates[0] - b.geometry.coordinates[0]) : (b.geometry.coordinates[1] - a.geometry.coordinates[1]));
-    const approxMaxCuadras = Math.max(15, Math.ceil(num / 100) + 2);
-    const ratio = Math.min(1, Math.max(0, (cuadra - 1) / approxMaxCuadras));
-    const idx = Math.min(sorted.length - 1, Math.round(ratio * (sorted.length - 1)));
-    return sorted[idx];
+
+    // Sort features along the street progression
+    // In Lima, West-to-East (Angamos, Benavides) and North-to-South (Marsano, Aviación, Panamá)
+    const sorted = [...validFeatures].sort((a, b) => {
+      return isEastWest 
+        ? (a.geometry.coordinates[0] - b.geometry.coordinates[0])
+        : (b.geometry.coordinates[1] - a.geometry.coordinates[1]);
+    });
+
+    // Calculate approximate street length in meters
+    const dLng = (maxLng - minLng) * 111320 * Math.cos(-12.11 * Math.PI / 180);
+    const dLat = (maxLat - minLat) * 110574;
+    const totalMeters = Math.hypot(dLng, dLat);
+    // In Lima, each cuadra averages ~90-100 meters
+    const estimatedCuadras = Math.max(cuadra, Math.round(totalMeters / 90));
+
+    const targetRatio = Math.min(1, Math.max(0, (cuadra - 1) / Math.max(1, estimatedCuadras)));
+    let targetLng = sorted[0].geometry.coordinates[0] + targetRatio * (sorted[sorted.length - 1].geometry.coordinates[0] - sorted[0].geometry.coordinates[0]);
+    let targetLat = sorted[0].geometry.coordinates[1] + targetRatio * (sorted[sorted.length - 1].geometry.coordinates[1] - sorted[0].geometry.coordinates[1]);
+
+    // Offset for sidewalk side based on street numbering parity
+    // In Lima: Odd numbers = North / East sidewalk; Even numbers = South / West sidewalk
+    if (isEastWest) {
+      if (num % 2 !== 0) targetLat += 0.00015; // North sidewalk
+      else targetLat -= 0.00015;               // South sidewalk
+    } else {
+      if (num % 2 !== 0) targetLng += 0.00015; // East sidewalk
+      else targetLng -= 0.00015;               // West sidewalk
+    }
+
+    let best = sorted[0];
+    let minD = Infinity;
+    for (const f of sorted) {
+      const d = Math.hypot(f.geometry.coordinates[0] - targetLng, f.geometry.coordinates[1] - targetLat);
+      if (d < minD) {
+        minD = d;
+        best = f;
+      }
+    }
+
+    const cloned = JSON.parse(JSON.stringify(best));
+    cloned.geometry.coordinates = [targetLng, targetLat];
+    return cloned;
   }
   // ─── GEOCODIFICADOR OFICIAL GEOPERÚ / GEOIDEP (100% GRATUITO Y SIN CLAVES) ───
   async function searchGeoPeru(rawQuery, districtName = 'Surquillo') {
@@ -1740,28 +1784,79 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('GeoPerú suggestions failed:', e);
     }
 
-    // 2. Secondary Strategy: Photon Autocomplete
+    // 2. Secondary Strategy: Photon Autocomplete (Inteligente y sin duplicados de número)
     try {
-      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=8`;
+      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query + ' Surquillo')}&lat=-12.1128&lon=-77.0228&limit=10`;
       const res = await fetch(photonUrl);
       if (res.ok) {
         const data = await res.json();
         if (data?.features && data.features.length > 0) {
-          currentSuggestions = data.features.map(f => {
-            const lng = f.geometry.coordinates[0];
-            const lat = f.geometry.coordinates[1];
-            const p = f.properties;
-            const street = cleanSpanishStreetName(p.street || p.name || '');
-            const num = p.housenumber || userNum || '';
-            const loc = p.locality || '';
-            let address = street && num ? `${street} ${num}` : (street || cleanSpanishStreetName(p.name) || loc);
-            if (loc && loc !== street && loc !== 'Surquillo' && !address.includes(loc)) {
-              address += ` (${loc})`;
+          const suggestionsList = [];
+          const seenKeys = new Set();
+
+          // Si el usuario especificó número exacto y existe un inmueble con ese número exacto
+          const exactFeatures = userNum ? data.features.filter(f => f.properties?.housenumber == userNum) : [];
+
+          if (exactFeatures.length > 0) {
+            for (const f of exactFeatures) {
+              const lng = f.geometry.coordinates[0];
+              const lat = f.geometry.coordinates[1];
+              const p = f.properties;
+              const street = cleanSpanishStreetName(p.street || p.name || '');
+              const address = `${street} ${userNum}`;
+              const normKey = address.toLowerCase();
+              if (seenKeys.has(normKey)) continue;
+              seenKeys.add(normKey);
+              const sector = findSectorForPoint(lat, lng);
+              suggestionsList.push({ lat, lng, address, sector });
             }
-            const sector = findSectorForPoint(lat, lng);
-            return { lat, lng, address, sector };
-          });
-          
+          } else if (userNum) {
+            // Agrupar tramos de la misma calle para no generar múltiples opciones con el mismo número
+            const groups = new Map();
+            for (const f of data.features) {
+              const p = f.properties;
+              const street = cleanSpanishStreetName(p.street || p.name || '');
+              if (!street) continue;
+              // Si el usuario no escribió "auxiliar", no mezclar vías auxiliares
+              const isAux = street.toLowerCase().startsWith('auxiliar');
+              const queryHasAux = query.toLowerCase().includes('auxiliar');
+              if (isAux && !queryHasAux) continue;
+
+              const normKey = street.toLowerCase();
+              if (!groups.has(normKey)) groups.set(normKey, []);
+              groups.get(normKey).push(f);
+            }
+
+            for (const [streetKey, feats] of groups.entries()) {
+              const best = pickBestFeatureForStreet(feats, userNum);
+              if (!best) continue;
+              const lng = best.geometry.coordinates[0];
+              const lat = best.geometry.coordinates[1];
+              const streetName = cleanSpanishStreetName(best.properties.street || best.properties.name || streetKey);
+              const address = `${streetName} ${userNum}`;
+              const normKey = address.toLowerCase();
+              if (seenKeys.has(normKey)) continue;
+              seenKeys.add(normKey);
+              const sector = findSectorForPoint(lat, lng);
+              suggestionsList.push({ lat, lng, address, sector });
+            }
+          } else {
+            // Búsqueda sin número: sugerir nombres únicos de calles
+            for (const f of data.features) {
+              const lng = f.geometry.coordinates[0];
+              const lat = f.geometry.coordinates[1];
+              const p = f.properties;
+              const street = cleanSpanishStreetName(p.street || p.name || '');
+              if (!street) continue;
+              const normKey = street.toLowerCase();
+              if (seenKeys.has(normKey)) continue;
+              seenKeys.add(normKey);
+              const sector = findSectorForPoint(lat, lng);
+              suggestionsList.push({ lat, lng, address: street, sector });
+            }
+          }
+
+          currentSuggestions = suggestionsList;
           if (currentSuggestions.length > 0) {
             renderSuggestions();
             return;
