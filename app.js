@@ -1569,6 +1569,46 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
 
+  // ─── MOTOR GOOGLE GEOCODING (SDK OFICIAL + CACHÉ DE MEMORIA ANTI-CUOTA) ───
+  const googleGeocodeCache = new Map();
+
+  function getGoogleGeocoder() {
+    if (!googleGeocoder && window.google && window.google.maps && window.google.maps.Geocoder) {
+      googleGeocoder = new google.maps.Geocoder();
+    }
+    return googleGeocoder;
+  }
+
+  function geocodeWithGoogle(query, district) {
+    return new Promise((resolve) => {
+      const fullQuery = `${query}, ${district}, Lima, Peru`;
+      const cacheKey = fullQuery.toLowerCase().trim();
+      if (googleGeocodeCache.has(cacheKey)) {
+        return resolve(googleGeocodeCache.get(cacheKey));
+      }
+
+      const geocoder = getGoogleGeocoder();
+      if (!geocoder) {
+        return resolve(null);
+      }
+
+      geocoder.geocode({
+        address: fullQuery,
+        componentRestrictions: { country: 'PE' }
+      }, (results, status) => {
+        if (status === 'OK' && results && results.length > 0) {
+          googleGeocodeCache.set(cacheKey, results);
+          resolve(results);
+        } else {
+          if (status !== 'ZERO_RESULTS') {
+            console.warn('Google Geocode status:', status);
+          }
+          resolve(null);
+        }
+      });
+    });
+  }
+
   async function handleSearch() {
     const rawQuery = searchInput?.value?.trim();
     if (!rawQuery) {
@@ -1585,22 +1625,54 @@ document.addEventListener('DOMContentLoaded', () => {
     let foundAddress = rawQuery;
 
     try {
-      // 1. PRIMARY STRATEGY: GeoPerú (GEOIDEP oficial del Estado Peruano - 100% Preciso y Gratuito)
+      // 1. PRIMARY STRATEGY: Google Geocoding API (Máxima Precisión Oficial)
       try {
-        const geoResult = await searchGeoPeru(rawQuery, 'Surquillo');
-        if (geoResult) {
-          const matchedSector = findSectorForPoint(geoResult.lat, geoResult.lng);
-          if (matchedSector) {
-            lat = geoResult.lat;
-            lng = geoResult.lng;
-            foundAddress = geoResult.address;
+        const gResults = await geocodeWithGoogle(rawQuery, 'Surquillo');
+        if (gResults && gResults.length > 0) {
+          for (const best of gResults) {
+            const gLat = typeof best.geometry.location.lat === 'function' ? best.geometry.location.lat() : best.geometry.location.lat;
+            const gLng = typeof best.geometry.location.lng === 'function' ? best.geometry.location.lng() : best.geometry.location.lng;
+            const matchedSector = findSectorForPoint(gLat, gLng);
+            if (matchedSector) {
+              lat = gLat;
+              lng = gLng;
+              const addrParts = best.address_components || [];
+              const streetComp = addrParts.find(c => c.types.includes('route'));
+              const numComp = addrParts.find(c => c.types.includes('street_number'));
+              if (streetComp && numComp) {
+                foundAddress = `${streetComp.long_name} ${numComp.long_name}`;
+              } else if (streetComp) {
+                foundAddress = userNum ? `${streetComp.long_name} ${userNum}` : streetComp.long_name;
+              } else {
+                foundAddress = best.formatted_address.split(',')[0];
+              }
+              foundAddress = cleanSpanishStreetName(foundAddress);
+              break;
+            }
           }
         }
       } catch (e) {
-        console.warn('GeoPerú primary search error:', e);
+        console.warn('Google Geocoding search error:', e);
       }
 
-      // 2. Secondary Strategy: Photon (Komoot OSM - Búsqueda Inteligente de Cuadra y Número)
+      // 2. FALLBACK: GeoPerú (GEOIDEP oficial del Estado Peruano - 100% Gratuito)
+      if (lat === null) {
+        try {
+          const geoResult = await searchGeoPeru(rawQuery, 'Surquillo');
+          if (geoResult) {
+            const matchedSector = findSectorForPoint(geoResult.lat, geoResult.lng);
+            if (matchedSector) {
+              lat = geoResult.lat;
+              lng = geoResult.lng;
+              foundAddress = geoResult.address;
+            }
+          }
+        } catch (e) {
+          console.warn('GeoPerú search error:', e);
+        }
+      }
+
+      // 3. FALLBACK: Photon (Komoot OSM - Búsqueda Inteligente de Cuadra y Número)
       if (lat === null) {
         try {
           const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(rawQuery + ' Surquillo Lima')}&lat=-12.1128&lon=-77.0228&limit=10`;
@@ -1624,7 +1696,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // 3. Tertiary Strategy: Nominatim fallback
+      // 4. ÚLTIMO FALLBACK: Nominatim
       if (lat === null) {
         try {
           const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(rawQuery + ', Surquillo, Lima, Peru')}&limit=5&addressdetails=1`;
@@ -1714,17 +1786,65 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  /** Fetch suggestions using Google Places Autocomplete with Photon fallback */
+  /** Fetch suggestions using Google Geocoding (Primary) with GeoPerú and Photon fallbacks */
   async function fetchSuggestions(query) {
-    if (!query || query.length < 2) {
+    if (!query || query.trim().length < 3) {
       hideSuggestions();
       return;
     }
 
-    const userNum = extractHouseNumber(query);
+    const cleanQuery = query.trim();
+    const userNum = extractHouseNumber(cleanQuery);
     currentSuggestions = [];
 
-    // 1. PRIMARY STRATEGY: GeoPerú (GEOIDEP Autocomplete)
+    // 1. PRIMARY STRATEGY: Google Geocoding (Máxima precisión para transportistas)
+    try {
+      const gResults = await geocodeWithGoogle(cleanQuery, 'Surquillo');
+      if (gResults && gResults.length > 0) {
+        const seenAddresses = new Set();
+        const suggestionsList = [];
+
+        for (const item of gResults) {
+          const lat = typeof item.geometry.location.lat === 'function' ? item.geometry.location.lat() : item.geometry.location.lat;
+          const lng = typeof item.geometry.location.lng === 'function' ? item.geometry.location.lng() : item.geometry.location.lng;
+
+          const addrParts = item.address_components || [];
+          const streetComp = addrParts.find(c => c.types.includes('route'));
+          const numComp = addrParts.find(c => c.types.includes('street_number'));
+
+          let address = '';
+          if (streetComp && numComp) {
+            address = `${streetComp.long_name} ${numComp.long_name}`;
+          } else if (streetComp) {
+            address = userNum ? `${streetComp.long_name} ${userNum}` : streetComp.long_name;
+          } else if (item.formatted_address) {
+            address = item.formatted_address.split(',')[0];
+          } else {
+            address = cleanQuery;
+          }
+
+          address = cleanSpanishStreetName(address);
+          const normKey = address.toLowerCase();
+          if (seenAddresses.has(normKey)) continue;
+          seenAddresses.add(normKey);
+
+          const sector = findSectorForPoint(lat, lng);
+          if (sector) {
+            suggestionsList.push({ lat, lng, address, sector });
+          }
+        }
+
+        if (suggestionsList.length > 0) {
+          currentSuggestions = suggestionsList;
+          renderSuggestions();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Google autocomplete suggestions error:', e);
+    }
+
+    // 2. FALLBACK STRATEGY: GeoPerú (GEOIDEP Autocomplete)
     try {
       const geoUrl = `https://www.geoidep.gob.pe/geoapify?q=${encodeURIComponent(query + ' Surquillo')}`;
       const res = await fetch(geoUrl);
@@ -1999,7 +2119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Debounced input handler for suggestions
-  const debouncedFetch = debounce(fetchSuggestions, 350);
+  const debouncedFetch = debounce(fetchSuggestions, 450);
 
   searchInput?.addEventListener('input', () => {
     const query = searchInput.value.trim();
