@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Mapa interactivo sectorizado en 7 sectores del distrito de Surquillo, Lima. Busca direcciones, graba rutas y clasifica automáticamente por sector.">
+    <title>Surquillo Express v10.0 | Clasificación Territorial Temu</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="anonymous" />
+
+    <!-- App Styles -->
+    <link rel="stylesheet" href="styles.css?v=12.0.0-mobile-fix">
+
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗺️</text></svg>">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2 class="loading-title">Mapa Sectorizado de Surquillo</h2>
+            <p class="loading-subtitle">Cargando 7 Sectores Territoriales...</p>
+        </div>
+    </div>
+    <script>
+        // Failsafe inmediato: oculta la pantalla de carga tras máximo 1.5s
+        setTimeout(function() {
+            var ls = document.getElementById('loading-screen');
+            if (ls) ls.classList.add('hidden');
+        }, 1500);
+    </script>
+
+    <!-- Barra Flotante Google Maps en Móvil (Visible solo en celular) -->
+    <div class="mobile-gmaps-searchbar" id="mobile-gmaps-bar">
+        <button class="gmaps-menu-btn" id="sidebar-toggle" aria-label="Abrir menú y herramientas" type="button">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5f6368" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div class="gmaps-search-text" id="mobile-search-trigger">
+            <span>Buscar dirección en Surquillo...</span>
+        </div>
+        <button class="gmaps-search-btn" id="mobile-search-btn" aria-label="Buscar" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+        </button>
+        <span id="recording-badge" style="display:none;"></span>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <!-- Drag Handle (visible only on mobile) -->
+        <div class="sidebar-drag-handle" id="sidebar-drag-handle">
+            <div class="drag-bar"></div>
+        </div>
+
+        <!-- Botón para cerrar / volver al mapa en móvil -->
+        <div class="mobile-sidebar-header" id="mobile-sidebar-header">
+            <button class="mobile-back-to-map-btn" id="mobile-back-to-map-btn" type="button" aria-label="Volver al mapa">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                <span>Volver al Mapa</span>
+            </button>
+            <span class="mobile-header-title">Surquillo (7 Sectores)</span>
+        </div>
+        <!-- Search Section -->
+                <!-- Google Maps Style Sidebar Brand Card -->
+        <div class="sidebar-brand-card">
+            <div class="brand-info">
+                <span class="brand-logo">🗺️</span>
+                <div>
+                    <h1 class="brand-title">Surquillo</h1>
+                    <span class="brand-subtitle">7 Sectores Territoriales</span>
+                </div>
+            </div>
+            <span class="brand-chip">⚡ v10.0 ULTRA</span>
+        </div>
+
+<div class="sidebar-section search-section">
+            <h2 class="section-title">
+                <span class="section-icon">🔍</span>
+                Buscar Dirección
+            </h2>
+            <!-- Modo Cochera / Clasificación Rápida -->
+            <div class="rapid-mode-banner">
+                <button id="rapid-mode-toggle" class="rapid-mode-btn" type="button" aria-pressed="false" title="Optimizado para separar paquetes de Temu a máxima velocidad">
+                    <span class="rapid-mode-bolt">⚡</span>
+                    <span class="rapid-mode-text">Modo Cochera (Clasificación Rápida)</span>
+                    <span class="rapid-mode-switch" id="rapid-mode-switch">OFF</span>
+                </button>
+            </div>
+            <div class="search-bar">
+                <div class="search-input-wrapper">
+                    <input
+                        type="text"
+                        id="search-input"
+                        class="search-input"
+                        placeholder="Ej: Av. Angamos Este 1200, La Calera..."
+                        autocomplete="off"
+                        aria-label="Buscar dirección en Surquillo"
+                    >
+                    <button id="search-input-clear" class="search-input-clear" aria-label="Borrar texto de búsqueda" title="Borrar texto" type="button">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <button id="mic-btn" class="mic-btn" aria-label="Usar micrófono para dictar dirección" title="Dictar dirección por voz">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 01-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                </button>
+                <button id="search-btn" class="search-btn" aria-label="Buscar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+            </div>
+            <!-- Search Suggestions Dropdown -->
+            <ul id="search-suggestions" class="search-suggestions" role="listbox" aria-label="Sugerencias de dirección"></ul>
+
+            <!-- Rapid Mode Sector Card (Visible only when Rapid Mode is ON and a sector is found) -->
+            <div id="rapid-result-card" class="rapid-result-card" style="display: none;">
+                <div class="rapid-result-header">
+                    <span class="rapid-result-badge-label">SECTOR ASIGNADO</span>
+                    <span class="rapid-counter" id="rapid-counter-display">📦 Paquetes hoy: 0</span>
+                </div>
+                <div class="rapid-sector-display" id="rapid-sector-title">
+                    SECTOR
+                </div>
+                <div class="rapid-sector-subtitle" id="rapid-sector-subtitle">
+                    Zona
+                </div>
+                <div class="rapid-address-confirmed" id="rapid-address-confirmed">
+                    Dirección
+                </div>
+                <div class="rapid-action-row">
+                    <button id="rapid-next-btn" class="rapid-next-btn" type="button">
+                        <span>Siguiente Paquete</span>
+                        <kbd>Enter ↵</kbd>
+                    </button>
+                </div>
+            </div>
+            <button id="clear-btn" class="clear-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"></path>
+                </svg>
+                Limpiar búsqueda
+            </button>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+                <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- EXCEL TEMU BATCH CLASSIFIER SECTION -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="sidebar-section excel-section">
+            <button id="excel-modal-btn" class="excel-launch-btn" type="button">
+                <span class="excel-btn-icon">📊</span>
+                <div class="excel-btn-content">
+                    <span class="excel-btn-title">Subir Excel de Pedidos Temu</span>
+                    <span class="excel-btn-desc">Clasificar manifiesto de 800+ direcciones</span>
+                </div>
+                <span class="excel-btn-badge">NUEVO</span>
+            </button>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- ROUTE RECORDER SECTION -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <div class="sidebar-section route-section">
+            <h2 class="section-title">
+                <span class="section-icon">🛣️</span>
+                Grabador de Rutas
+            </h2>
+
+            <!-- Recording Controls -->
+            <div class="route-controls">
+                <button id="route-toggle-btn" class="route-btn route-btn--start">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    <span>Iniciar Ruta</span>
+                </button>
+                <button id="route-summary-btn" class="route-btn route-btn--summary" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>Ver Resumen</span>
+                </button>
+            </div>
+
+            <!-- Recording Status -->
+            <div id="route-status" class="route-status" style="display: none;">
+                <div class="route-status-indicator">
+                    <span class="recording-pulse-dot"></span>
+                    <span class="route-status-text">Grabando...</span>
+                </div>
+                <span id="route-stop-counter" class="route-stop-counter">0 paradas</span>
+            </div>
+
+            <!-- Live Stops List -->
+            <div id="route-stops-container" class="route-stops-container" style="display: none;">
+                <div class="route-stops-header">
+                    <span class="route-stops-title">📍 Paradas registradas</span>
+                    <button id="route-clear-btn" class="route-clear-btn" title="Borrar toda la ruta">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 6h18"></path>
+                            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"></path>
+                        </svg>
+                    </button>
+                </div>
+                <ul id="route-stops-list" class="route-stops-list">
+                    <!-- Dynamic stops rendered here by JS -->
+                </ul>
+        </div>
+
+        <!-- Sectors Toggle Button -->
+        <div class="sidebar-section sectors-toggle-section">
+            <button id="sectors-toggle-btn" class="sectors-toggle-btn">
+                <div class="sectors-toggle-left">
+                    <span class="section-icon">📍</span>
+                    <span>Sectores del Distrito (1 al 7)</span>
+                </div>
+                <svg class="sectors-toggle-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Sectors Section (Hidden by default) -->
+        <div class="sidebar-section sectors-section" id="sectors-panel" style="display: none;">
+            <h2 class="section-title">
+                <span class="section-icon">📍</span>
+                Sectores del Distrito (1 al 7)
+            </h2>
+
+            <div class="sector-cards" id="sector-cards">
+                <!-- Sector 1 -->
+                <div class="sector-card" data-sector="1">
+                    <div class="sector-card-indicator" style="--sector-color: #3B82F6;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">01</span>
+                            <h3 class="sector-name">Sector 1</h3>
+                        </div>
+                        <p class="sector-subtitle">La Calera / Higuereta / El Pedregal</p>
+                        <div class="subsector-chips">
+                            <button class="subsector-chip" data-subsector="1-A" style="background: #60A5FA20; color: #60A5FA; border-color: #60A5FA40;">
+                                <span class="chip-dot" style="background: #60A5FA;"></span> 1-A
+                            </button>
+                            <button class="subsector-chip" data-subsector="1-B" style="background: #3B82F620; color: #3B82F6; border-color: #3B82F640;">
+                                <span class="chip-dot" style="background: #3B82F6;"></span> 1-B
+                            </button>
+                            <button class="subsector-chip" data-subsector="1-C" style="background: #2563EB20; color: #2563EB; border-color: #2563EB40;">
+                                <span class="chip-dot" style="background: #2563EB;"></span> 1-C
+                            </button>
+                            <button class="subsector-chip" data-subsector="1-D" style="background: #1D4ED820; color: #1D4ED8; border-color: #1D4ED840;">
+                                <span class="chip-dot" style="background: #1D4ED8;"></span> 1-D
+                            </button>
+                        </div>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 2 -->
+                <div class="sector-card" data-sector="2">
+                    <div class="sector-card-indicator" style="--sector-color: #F59E0B;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">02</span>
+                            <h3 class="sector-name">Sector 2</h3>
+                        </div>
+                        <p class="sector-subtitle">Barrio Médico / Mantilla</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 3 -->
+                <div class="sector-card" data-sector="3">
+                    <div class="sector-card-indicator" style="--sector-color: #EF4444;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">03</span>
+                            <h3 class="sector-name">Sector 3</h3>
+                        </div>
+                        <p class="sector-subtitle">Surquillo Viejo / Tradicional</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 4 -->
+                <div class="sector-card" data-sector="4">
+                    <div class="sector-card-indicator" style="--sector-color: #10B981;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">04</span>
+                            <h3 class="sector-name">Sector 4</h3>
+                        </div>
+                        <p class="sector-subtitle">General Recavarren / Irribarren</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 5 -->
+                <div class="sector-card" data-sector="5">
+                    <div class="sector-card-indicator" style="--sector-color: #8B5CF6;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">05</span>
+                            <h3 class="sector-name">Sector 5</h3>
+                        </div>
+                        <p class="sector-subtitle">San Felipe / El Cóndor</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 6 -->
+                <div class="sector-card" data-sector="6">
+                    <div class="sector-card-indicator" style="--sector-color: #EC4899;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">06</span>
+                            <h3 class="sector-name">Sector 6</h3>
+                        </div>
+                        <p class="sector-subtitle">Villa Victoria / Urb. Primavera</p>
+                        <div class="subsector-chips">
+                            <button class="subsector-chip" data-subsector="6-A" style="background: #F472B620; color: #F472B6; border-color: #F472B640;">
+                                <span class="chip-dot" style="background: #F472B6;"></span> 6-A
+                            </button>
+                            <button class="subsector-chip" data-subsector="6-B" style="background: #DB277720; color: #DB2777; border-color: #DB277740;">
+                                <span class="chip-dot" style="background: #DB2777;"></span> 6-B
+                            </button>
+                        </div>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Sector 7 -->
+                <div class="sector-card" data-sector="7">
+                    <div class="sector-card-indicator" style="--sector-color: #06B6D4;"></div>
+                    <div class="sector-card-content">
+                        <div class="sector-card-header">
+                            <span class="sector-number">07</span>
+                            <h3 class="sector-name">Sector 7</h3>
+                        </div>
+                        <p class="sector-subtitle">Los Halcones / Los Negocios</p>
+                    </div>
+                    <div class="sector-card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Info Panel (details when sector selected) -->
+        <div class="sidebar-section info-panel" id="info-panel">
+            <div class="info-panel-header">
+                <h2 class="section-title">
+                    <span class="section-icon">📋</span>
+                    <span id="info-title">Detalles del Sector</span>
+                </h2>
+                <button class="info-close" id="info-close" aria-label="Cerrar panel de detalles">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="info-body" id="info-body">
+                <p class="info-placeholder">Seleccione un sector o busque una dirección para ver los detalles.</p>
+            </div>
+        </div>
+
+        <!-- Footer Stats -->
+        <div class="sidebar-footer">
+            <div class="footer-stat">
+                <span class="stat-value">7</span>
+                <span class="stat-label">Sectores</span>
+            </div>
+            <div class="footer-divider"></div>
+            <div class="footer-stat">
+                <span class="stat-value" id="footer-stops">0</span>
+                <span class="stat-label">Paradas</span>
+            </div>
+            <div class="footer-divider"></div>
+            <div class="footer-stat">
+                <span class="stat-value">100%</span>
+                <span class="stat-label">Cobertura</span>
+    </aside>
+
+    <!-- Botón Inferior Móvil para Desplegar (Google Maps Peek Pill) -->
+    <button class="mobile-bottom-peek" id="mobile-bottom-peek" type="button" aria-label="Ver 7 Sectores y Herramientas">
+        <span class="peek-icon">⚡</span>
+        <span>Sectores & Modo Cochera</span>
+        <span class="peek-arrow">▲</span>
+    </button>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- ROUTE SUMMARY MODAL -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="route-modal" class="route-modal" style="display: none;">
+        <div class="route-modal-backdrop" id="route-modal-backdrop"></div>
+        <div class="route-modal-content">
+            <div class="route-modal-header">
+                <h2 class="route-modal-title">📋 Resumen de Ruta por Sectores</h2>
+                <button id="route-modal-close" class="route-modal-close" aria-label="Cerrar resumen">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="route-modal-tabs">
+                <button class="route-tab active" data-tab="by-sector">Por Sector</button>
+                <button class="route-tab" data-tab="itinerary">Itinerario</button>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="route-modal-body" id="route-modal-body">
+                <!-- Dynamically populated by JS -->
+            </div>
+
+            <!-- Export Actions -->
+            <div class="route-modal-footer">
+                <button id="route-share-btn" class="route-export-btn route-export-btn--share">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="18" cy="5" r="3"></circle>
+                        <circle cx="6" cy="12" r="3"></circle>
+                        <circle cx="18" cy="19" r="3"></circle>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                    </svg>
+                    Compartir Ruta
+                </button>
+                <button id="route-copy-btn" class="route-export-btn route-export-btn--copy">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+                    </svg>
+                    Copiar Reporte
+                </button>
+                <button id="route-download-btn" class="route-export-btn route-export-btn--download">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Descargar CSV
+                </button>
+            </div>
+        </div>
+    </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- EXCEL CLASSIFIER MODAL -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="excel-modal" class="excel-modal" style="display: none;">
+        <div class="excel-modal-backdrop" id="excel-modal-backdrop"></div>
+        <div class="excel-modal-content">
+            <div class="excel-modal-header">
+                <div class="excel-modal-title-box">
+                    <span class="excel-icon">📊</span>
+                    <div>
+                        <h2 class="excel-modal-title">Clasificador Masivo de Pedidos Temu / J&T</h2>
+                        <p class="excel-modal-subtitle">Asigna automáticamente los 7 sectores a cientos de pedidos en 1 segundo</p>
+                    </div>
+                </div>
+                <button id="excel-modal-close" class="excel-modal-close" aria-label="Cerrar modal">&times;</button>
+            </div>
+
+            <!-- Upload Area -->
+            <div class="excel-upload-zone" id="excel-drop-zone">
+                <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" style="display: none;">
+                <div class="upload-icon">📁</div>
+                <p class="upload-prompt">Arrastra aquí el archivo Excel del almacén o <strong>haz clic para seleccionar</strong></p>
+                <p class="upload-hint">Formatos compatibles: .xlsx, .xls, .csv (Manifiestos de Temu / J&T Express)</p>
+            </div>
+
+            <!-- Results Summary & Filters -->
+            <div id="excel-results-panel" style="display: none;">
+                <!-- Statistics Cards -->
+                <div class="excel-stats-grid">
+                    <div class="stat-card stat-total">
+                        <span class="stat-num" id="stat-total-count">0</span>
+                        <span class="stat-label">Total Pedidos</span>
+                    </div>
+                    <div class="stat-card stat-ok">
+                        <span class="stat-num" id="stat-ok-count">0</span>
+                        <span class="stat-label">✅ Clasificados</span>
+                    </div>
+                    <div class="stat-card stat-warning">
+                        <span class="stat-num" id="stat-warning-count">0</span>
+                        <span class="stat-label">⚠️ Dudosas / Revisar</span>
+                    </div>
+                </div>
+
+                <!-- Sector Breakdown Pills -->
+                <div class="excel-sectors-bar" id="excel-sectors-breakdown"></div>
+
+                <!-- Table Controls & Search Filter -->
+                <div class="excel-table-controls">
+                    <input type="text" id="excel-search-input" class="excel-filter-input" placeholder="🔍 Buscar por guía, destinatario o calle...">
+                    <div class="excel-filter-tabs">
+                        <button class="filter-tab active" data-filter="all">Todos</button>
+                        <button class="filter-tab filter-warning" data-filter="warning">⚠️ Solo Dudosas</button>
+                    </div>
+                    <button id="excel-export-btn" class="excel-export-btn">
+                        📥 Descargar Excel con Sectores (.xlsx)
+                    </button>
+                </div>
+
+                <!-- Table View -->
+                <div class="excel-table-wrapper">
+                    <table class="excel-table" id="excel-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>N° de Guía</th>
+                                <th>Destinatario</th>
+                                <th>Dirección</th>
+                                <th>Sector Asignado</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="excel-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map" class="map-container"></div>
+
+    <!-- Sidebar Overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Leaflet.js -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin="anonymous"></script>
+
+    <!-- Google Maps Platform SDK (Geocoding & Maps JS - Clave Protegida) -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBjvMUElXlyKjVmF_jf3g5YdubmZHxHSKQ&language=es&region=PE"></script>
+
+    <!-- SheetJS para Procesamiento Masivo de Excel (.xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- Diccionario Local de Calles de Surquillo (0ms Instantáneo) -->
+    <script src="surquillo-streets.js?v=1.0.0"></script>
+
+    <!-- Clasificador Masivo de Excel Temu -->
+    <script src="excel-classifier.js?v=1.0.0"></script>
+
+    <!-- App Script -->
+    <script src="app.js?v=10.0.0-ultra-speed"></script>
+</body>
+</html>
+
