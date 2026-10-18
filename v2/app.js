@@ -505,7 +505,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let googleAutocompleteService = null;
 
   function initGoogleMapsServices() {
-    // Google Maps Platform desacoplado. Motor activo: Photon (Komoot OSM) + Nominatim (OpenStreetMap)
+    if (window.google && window.google.maps) {
+      if (!googleGeocoder && window.google.maps.Geocoder) {
+        googleGeocoder = new google.maps.Geocoder();
+        console.log('✅ Google Geocoder initialized');
+      }
+      if (!googleAutocompleteService && window.google.maps.places && window.google.maps.places.AutocompleteService) {
+        googleAutocompleteService = new google.maps.places.AutocompleteService();
+        console.log('✅ Google Places AutocompleteService initialized');
+      }
+    }
   }
 
   // Initialize immediately or on load
@@ -1575,7 +1584,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ─── CACHÉ PERSISTENTE DE DIRECCIONES (localStorage) ───
   // Sobrevive cierres de pestaña y reinicios del celular.
   // Cada dirección geocodificada se guarda para siempre.
-  const CACHE_KEY = 'surquillo_address_cache_v1';
+  const CACHE_KEY = 'surquillo_address_cache_v2';
   let persistentCache = {};
 
   function loadPersistentCache() {
@@ -1779,6 +1788,74 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  /**
+   * Google Places Autocomplete — Misma tecnología que la barra de Google Maps.
+   * Devuelve predicciones de direcciones biased a Surquillo, Lima.
+   */
+  function getGooglePlacePredictions(query) {
+    return new Promise((resolve) => {
+      initGoogleMapsServices();
+      if (!googleAutocompleteService) {
+        console.warn('Google AutocompleteService not available');
+        return resolve([]);
+      }
+
+      const cleanQ = query.trim();
+      const inputStr = cleanQ.toLowerCase().includes('surquillo') ? cleanQ : `${cleanQ}, Surquillo`;
+
+      googleAutocompleteService.getPlacePredictions({
+        input: inputStr,
+        componentRestrictions: { country: 'pe' },
+        locationBias: {
+          center: { lat: -12.1150, lng: -77.0160 },
+          radius: 3500
+        }
+      }, (predictions, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+          resolve(predictions);
+        } else {
+          resolve([]);
+        }
+      });
+    });
+  }
+
+  /**
+   * Dado un place_id de Google, obtener coordenadas exactas via Geocoder.
+   */
+  function geocodePlaceId(placeId) {
+    return new Promise((resolve) => {
+      const geocoder = getGoogleGeocoder();
+      if (!geocoder) return resolve(null);
+
+      geocoder.geocode({ placeId }, (results, status) => {
+        if (status === 'OK' && results && results.length > 0) {
+          const loc = results[0].geometry.location;
+          const lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
+          const lng = typeof loc.lng === 'function' ? loc.lng() : loc.lng;
+
+          const addrParts = results[0].address_components || [];
+          const streetComp = addrParts.find(c => c.types.includes('route'));
+          const numComp = addrParts.find(c => c.types.includes('street_number'));
+
+          let address = '';
+          if (streetComp && numComp) {
+            address = `${streetComp.long_name} ${numComp.long_name}`;
+          } else if (streetComp) {
+            address = streetComp.long_name;
+          } else {
+            address = results[0].formatted_address.split(',')[0];
+          }
+          address = cleanSpanishStreetName(address);
+
+          resolve({ lat, lng, address });
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  }
+
   async function handleSearch() {
     const rawQuery = searchInput?.value?.trim();
     if (!rawQuery) {
@@ -1786,30 +1863,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // 0. CAPA 0: Caché local persistente (0ms)
+    // 0. CAPA 0: Caché local persistente (0ms) — solo direcciones verificadas por Google
     const cached = lookupCache(rawQuery);
     if (cached) {
       selectSuggestionObject(cached);
       return;
-    }
-
-    // 0B. CAPA 1: Diccionario local de calles de Surquillo (0ms)
-    if (window.findLocalStreetMatches) {
-      const localMatches = window.findLocalStreetMatches(rawQuery);
-      if (localMatches.length > 0) {
-        const m = localMatches[0];
-        const matchedSector = SECTORS.find(s => s.id === m.sectorId);
-        if (matchedSector) {
-          selectSuggestionObject({
-            lat: m.lat,
-            lng: m.lng,
-            address: m.address,
-            sector: matchedSector
-          });
-          cacheAddress(rawQuery, m.lat, m.lng, m.address, matchedSector.id);
-          return;
-        }
-      }
     }
 
     const userNum = extractHouseNumber(rawQuery);
@@ -2002,30 +2060,47 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // 0B. INSTANT LOOKUP: Local Surquillo Street Directory (0ms, 100% offline)
-    if (window.findLocalStreetMatches) {
-      const localMatches = window.findLocalStreetMatches(cleanQuery);
-      if (localMatches.length > 0) {
-        const localSuggestions = [];
-        for (const m of localMatches) {
-          const sector = SECTORS.find(s => s.id === m.sectorId);
-          if (sector) {
-            localSuggestions.push({
-              lat: m.lat,
-              lng: m.lng,
-              address: m.address,
-              sector: sector,
-              isLocal: true
-            });
-            cacheAddress(cleanQuery, m.lat, m.lng, m.address, sector.id);
+    // 1. PRIMARY STRATEGY: Google Places Autocomplete (100% Oficial de Google)
+    try {
+      const predictions = await getGooglePlacePredictions(cleanQuery);
+      if (predictions && predictions.length > 0) {
+        const topPreds = predictions.slice(0, 5);
+        const resolvedList = await Promise.all(topPreds.map(async (p) => {
+          const res = await geocodePlaceId(p.place_id);
+          if (res) {
+            const sector = findSectorForPoint(res.lat, res.lng);
+            if (sector) {
+              return {
+                lat: res.lat,
+                lng: res.lng,
+                address: res.address || p.description.split(',')[0],
+                sector: sector
+              };
+            }
+          }
+          return null;
+        }));
+
+        const validSuggestions = resolvedList.filter(Boolean);
+        if (validSuggestions.length > 0) {
+          const seenKeys = new Set();
+          currentSuggestions = [];
+          for (const item of validSuggestions) {
+            const k = item.address.toLowerCase();
+            if (!seenKeys.has(k)) {
+              seenKeys.add(k);
+              currentSuggestions.push(item);
+              cacheAddress(cleanQuery, item.lat, item.lng, item.address, item.sector.id);
+            }
+          }
+          if (currentSuggestions.length > 0) {
+            renderSuggestions();
+            return;
           }
         }
-        if (localSuggestions.length > 0) {
-          currentSuggestions = localSuggestions;
-          renderSuggestions();
-          return;
-        }
       }
+    } catch (e) {
+      console.warn('Google Places Autocomplete error:', e);
     }
 
     // 1. PRIMARY STRATEGY: Google Geocoding (Máxima precisión para transportistas)
