@@ -1788,9 +1788,57 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ─── GESTIÓN DE SESIONES DE GOOGLE PLACES (Ahorro de hasta 85% de tokens) ───
+  let currentAutocompleteSessionToken = null;
+
+  function getOrCreateSessionToken() {
+    if (!currentAutocompleteSessionToken && window.google?.maps?.places?.AutocompleteSessionToken) {
+      currentAutocompleteSessionToken = new google.maps.places.AutocompleteSessionToken();
+    }
+    return currentAutocompleteSessionToken;
+  }
+
+  function resetSessionToken() {
+    currentAutocompleteSessionToken = null;
+  }
+
   /**
-   * Google Places Autocomplete — Misma tecnología que la barra de Google Maps.
-   * Devuelve predicciones de direcciones biased a Surquillo, Lima.
+   * Limpia y normaliza texto de direcciones peruanas para optimizar caché y búsquedas.
+   * Remueve departamentos, pisos, interiores, referencias secundarias.
+   * Ej: "Ca. Manet 240 dpto 301 piso 4" -> "Calle Manet 240"
+   */
+  function cleanAddressForSearch(raw) {
+    if (!raw) return '';
+    let text = raw.trim();
+
+    // Eliminar referencias entre paréntesis o comillas
+    text = text.replace(/\([^)]*\)/g, ' ').replace(/"[^"]*"/g, ' ');
+
+    // Eliminar departamentos, interiores, pisos, blocks, torres
+    text = text.replace(/\b(dpto|depto|departamento|int|interior|piso|block|blq|torre|of|oficina|hab|habitacion)\.?\s*#?\s*[a-zA-Z0-9\-]+/gi, ' ');
+
+    // Normalizar abreviaturas peruanas comunes
+    text = text.replace(/\bca\.\s+/gi, 'Calle ')
+               .replace(/\bca\s+/gi, 'Calle ')
+               .replace(/\bclle\.\s+/gi, 'Calle ')
+               .replace(/\bav\.\s+/gi, 'Av. ')
+               .replace(/\bavn\.\s+/gi, 'Av. ')
+               .replace(/\bavenida\s+/gi, 'Av. ')
+               .replace(/\bjr\.\s+/gi, 'Jr. ')
+               .replace(/\bjiron\s+/gi, 'Jr. ')
+               .replace(/\bjirón\s+/gi, 'Jr. ')
+               .replace(/\bpsje\.\s+/gi, 'Pasaje ')
+               .replace(/\bpje\.\s+/gi, 'Pasaje ');
+
+    // Limpiar comas o dobles espacios sobrantes
+    text = text.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
+
+    return text;
+  }
+
+  /**
+   * Google Places Autocomplete con Session Tokens oficiales.
+   * Agrupa todas las teclas en una sola transacción cobrada.
    */
   function getGooglePlacePredictions(query) {
     return new Promise((resolve) => {
@@ -1800,17 +1848,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return resolve([]);
       }
 
-      const cleanQ = query.trim();
+      const cleanQ = cleanAddressForSearch(query);
       const inputStr = cleanQ.toLowerCase().includes('surquillo') ? cleanQ : `${cleanQ}, Surquillo`;
+      const sessionToken = getOrCreateSessionToken();
 
-      googleAutocompleteService.getPlacePredictions({
+      const request = {
         input: inputStr,
         componentRestrictions: { country: 'pe' },
         locationBias: {
           center: { lat: -12.1150, lng: -77.0160 },
           radius: 3500
         }
-      }, (predictions, status) => {
+      };
+
+      if (sessionToken) {
+        request.sessionToken = sessionToken;
+      }
+
+      googleAutocompleteService.getPlacePredictions(request, (predictions, status) => {
         if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
           resolve(predictions);
         } else {
@@ -2385,6 +2440,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function selectSuggestionObject(s) {
+    resetSessionToken();
     // Fill input with the formatted address
     if (searchInput) {
       searchInput.value = s.address;
@@ -2437,52 +2493,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Debounced input handler for suggestions
-  const debouncedFetch = debounce(fetchSuggestions, 400);
+  // Debounced input handler for suggestions (350ms - equilibrio perfecto velocidad / ahorro)
+  const debouncedFetch = debounce(fetchSuggestions, 350);
 
   searchInput?.addEventListener('input', () => {
     const query = searchInput.value.trim();
     updateSearchClearBtnVisibility();
 
-    if (!query || query.length < 2) {
+    if (!query || query.length < 3) {
       hideSuggestions();
       return;
     }
 
-    // ⚡ COMPROBACIÓN LOCAL ULTRA RÁPIDA (0ms):
-    // Si la dirección ya está en caché o en el diccionario local, mostrarla de inmediato sin esperar el debounce
-    const cached = lookupCache(query);
+    // ⚡ 0 TOKENS / 0ms: Si la dirección ya se buscó antes, responder de inmediato desde la caché
+    const cleanNorm = cleanAddressForSearch(query);
+    const cached = lookupCache(query) || lookupCache(cleanNorm);
     if (cached) {
       currentSuggestions = [cached];
       renderSuggestions();
       return;
     }
 
-    if (window.findLocalStreetMatches) {
-      const localMatches = window.findLocalStreetMatches(query);
-      if (localMatches.length > 0) {
-        const localSuggestions = [];
-        for (const m of localMatches) {
-          const sector = SECTORS.find(s => s.id === m.sectorId);
-          if (sector) {
-            localSuggestions.push({
-              lat: m.lat,
-              lng: m.lng,
-              address: m.address,
-              sector: sector,
-              isLocal: true
-            });
-          }
-        }
-        if (localSuggestions.length > 0) {
-          currentSuggestions = localSuggestions;
-          renderSuggestions();
-          return;
-        }
-      }
-    }
-
-    // Si no está en el diccionario local, consultar Google con debounce
+    // Consultar a Google Places con debounce y Session Token
     debouncedFetch(query);
   });
 
