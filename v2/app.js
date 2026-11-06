@@ -2499,30 +2499,11 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput?.addEventListener('input', () => {
     const query = searchInput.value.trim();
     updateSearchClearBtnVisibility();
-
-    if (!query || query.length < 3) {
-      hideSuggestions();
-      return;
-    }
-
-    // ⚡ 0 TOKENS / 0ms: Si la dirección ya se buscó antes, responder de inmediato desde la caché
-    const cleanNorm = cleanAddressForSearch(query);
-    const cached = lookupCache(query) || lookupCache(cleanNorm);
-    if (cached) {
-      currentSuggestions = [cached];
-      renderSuggestions();
-      return;
-    }
-
-    // Consultar a Google Places con debounce y Session Token
-    debouncedFetch(query);
+    // Búsqueda desactivada al teclear (ahorro de tokens)
   });
 
-  // Keyboard navigation for suggestions + Enter to search / next package
+  // Enter -> buscar / pasar al siguiente paquete (sin sugerencias al teclear para ahorrar tokens)
   searchInput?.addEventListener('keydown', e => {
-    const items = suggestionsEl?.querySelectorAll('li');
-    const isOpen = suggestionsEl?.classList.contains('visible') && items?.length > 0;
-
     if (e.key === 'Enter') {
       e.preventDefault();
       // Si estamos en Modo Cochera y ya hay resultado visible pero el input está vacío, pasar al siguiente
@@ -2530,30 +2511,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nextPackage();
         return;
       }
-      if (isOpen) {
-        if (activeSuggestionIndex >= 0) {
-          selectSuggestion(activeSuggestionIndex);
-        } else {
-          // Si hay sugerencias pero ninguna resaltada, seleccionar la 1era directamente
-          selectSuggestion(0);
-        }
-      } else {
-        handleSearch();
-      }
-    } else if (isOpen) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, items.length - 1);
-        items.forEach((li, i) => li.classList.toggle('active', i === activeSuggestionIndex));
-        items[activeSuggestionIndex]?.scrollIntoView({ block: 'nearest' });
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
-        items.forEach((li, i) => li.classList.toggle('active', i === activeSuggestionIndex));
-        items[activeSuggestionIndex]?.scrollIntoView({ block: 'nearest' });
-      } else if (e.key === 'Escape') {
-        hideSuggestions();
-      }
+      handleSearch();
     }
   });
 

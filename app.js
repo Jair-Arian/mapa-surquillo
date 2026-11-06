@@ -2124,37 +2124,13 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput?.addEventListener('input', () => {
     const query = searchInput.value.trim();
     updateSearchClearBtnVisibility();
-    debouncedFetch(query);
+    // Búsqueda desactivada al teclear (ahorro de tokens)
   });
 
-  // Keyboard navigation for suggestions + Enter to search
+  // Enter -> buscar (sin sugerencias automáticas para ahorrar tokens)
   searchInput?.addEventListener('keydown', e => {
-    const items = suggestionsEl?.querySelectorAll('li');
-    const isOpen = suggestionsEl?.classList.contains('visible') && items?.length > 0;
-
-    if (isOpen) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, items.length - 1);
-        items.forEach((li, i) => li.classList.toggle('active', i === activeSuggestionIndex));
-        items[activeSuggestionIndex]?.scrollIntoView({ block: 'nearest' });
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
-        items.forEach((li, i) => li.classList.toggle('active', i === activeSuggestionIndex));
-        items[activeSuggestionIndex]?.scrollIntoView({ block: 'nearest' });
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (activeSuggestionIndex >= 0) {
-          selectSuggestion(activeSuggestionIndex);
-        } else {
-          hideSuggestions();
-          handleSearch();
-        }
-      } else if (e.key === 'Escape') {
-        hideSuggestions();
-      }
-    } else if (e.key === 'Enter') {
+    if (e.key === 'Enter') {
+      e.preventDefault();
       handleSearch();
     }
   });
